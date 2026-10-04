@@ -44,7 +44,7 @@ cd <work folder>
 
 ```powershell
 .\proxy_on.ps1                                  # adb reverse 8080 + system proxy 127.0.0.1:8080
-capture.bat "api\.example\.com" myapp           # mitmweb, only this host; saves myapp.flow + myapp.har
+.\capture.ps1 "api\.example\.com" myapp          # mitmweb, only this host; saves myapp.flow + myapp.har
 ```
 
 Once per phone, install mitmproxy's CA: open `http://mitm.it` in the phone's browser → Android →

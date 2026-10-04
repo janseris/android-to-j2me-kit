@@ -22,7 +22,7 @@ app *Jízdní řády* (project repo:
 
 | Path | What |
 |---|---|
-| `android/scripts/` | PowerShell: `pull_apks.ps1`, `patch_apk.ps1` (apk-mitm), `proxy_on.ps1` / `proxy_off.ps1`; `capture.bat` (mitmweb for one host) |
+| `android/scripts/` | PowerShell: `pull_apks.ps1`, `patch_apk.ps1` (apk-mitm), `proxy_on.ps1` / `proxy_off.ps1`; `capture.ps1` / `capture.bat` (mitmweb for chosen hosts) |
 | `android/flowdump.py` | List/dump a mitmproxy `.flow`, save bodies, decode FastRPC (`--frpc`) |
 | `android/frpc.py` | Seznam FastRPC decoder (Seznam/mapy.cz backends) |
 | `android/dex_classes.py` | Decompile chosen classes from `classes.dex` with androguard |
