@@ -28,6 +28,12 @@ Other measured values (JavaSpecs / JBenchmark):
   limit with `probe/` (*Paměť*) before planning caches.
 - **Measured with `probe/` (2026-10-04):** the app got **16 MB** of heap (`byte[]` 16192 KB,
   `totalMemory` 16777216) and 44 mutable 256×256 images before OutOfMemoryError: plenty for map tiles.
+- **Map tiles (OSM, measured with `probe/` 1.6 over USB, 2026-10-04):** 256×256 PNG, 30–42 KB each;
+  per tile ~0.4–0.9 s until the response (new HTTPS connection each time), ~0.3 s body, **~0.5 s PNG
+  decode**. One screen (523×168) needs 6 tiles: ~9 s with a 0.3 s pause between tiles. 24 decoded tiles
+  in memory worked (images live outside the Java heap counter; `totalMemory` stayed at 640 KB).
+  The 9300 sends our own `User-Agent` unchanged. The first request after a while sometimes fails with
+  `SymbianOS error -5120` (DNS) or stalls: retrying on a new connection fixed it.
 - Timer resolution ~62 ms. JBenchmark 1515; JBenchmark 3D crashes (no JSR-184).
 - Bluetooth 1.1 with the Serial Port Profile (user guide, "Bluetooth connectivity").
 - **While the 9300 has a Bluetooth connection to the PC (PC Suite), it can't search for devices**
