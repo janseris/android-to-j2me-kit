@@ -15,6 +15,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     static final Command SEARCH = new Command("Hledat zařízení", Command.SCREEN, 1);
     static final Command CONNECT = new Command("Připojit (uložená adresa)", Command.SCREEN, 2);
     static final Command STOP = new Command("Odpojit", Command.STOP, 3);
+    static final Command KNOWN = new Command("Spárovaná zařízení (bez hledání)", Command.SCREEN, 1);
     static final UUID SPP = new UUID(0x1101);
 
     final Probe p = Probe.app;
@@ -33,7 +34,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     BtGpsScreen() {
         super("Bluetooth GPS");
         append(status); append(pos); append(stats); append(raw);
-        addCommand(SEARCH); addCommand(CONNECT); addCommand(STOP); addCommand(Probe.BACK);
+        addCommand(KNOWN); addCommand(SEARCH); addCommand(CONNECT); addCommand(STOP); addCommand(Probe.BACK);
         setCommandListener(this);
         try {
             LocalDevice ld = LocalDevice.getLocalDevice();
@@ -62,11 +63,43 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         if (c == Probe.BACK) { stop(); p.back(); }
         else if (c == STOP) stop();
         else if (c == SEARCH) inquiry();
+        else if (c == KNOWN) known();
         else if (c == CONNECT) {
-            if (p.btAddress.length() != 12) { setStatus("Nejdřív najdi zařízení, nebo zadej adresu v Nastavení."); return; }
-            // channel 1 is a guess; a found service URL is better
-            connect("btspp://" + p.btAddress + ":1;authenticate=false;encrypt=false;master=false");
+            String a = cleanAddress(p.btAddress);
+            if (a.length() != 12) { setStatus("Zadej BT adresu Androidu v Nastavení (Android: Nastavení > O telefonu > Stav > Adresa Bluetooth)."); return; }
+            p.btAddress = a;
+            // no RemoteDevice object without inquiry: make one from the address (protected constructor)
+            RemoteDevice rd = new RemoteDevice(a) {};
+            scanChannels = true;
+            searchService(rd);
         }
+    }
+
+    /** Paired (PREKNOWN) and recently seen (CACHED) devices, without an inquiry: works while other links are open. */
+    void known() {
+        if (agent == null) return;
+        devices.removeAllElements();
+        int pre = 0, cached = 0;
+        try {
+            RemoteDevice[] k = agent.retrieveDevices(DiscoveryAgent.PREKNOWN);
+            if (k != null) { pre = k.length; for (int i = 0; i < k.length; i++) deviceDiscovered(k[i], null); }
+            k = agent.retrieveDevices(DiscoveryAgent.CACHED);
+            if (k != null) { cached = k.length; for (int i = 0; i < k.length; i++) deviceDiscovered(k[i], null); }
+        } catch (Throwable e) {
+            p.log("bt retrieveDevices failed: " + e);
+        }
+        p.log("bt known devices: preknown " + pre + ", cached " + cached);
+        showDevices("Spárovaná: " + pre + ", nedávno viděná: " + cached);
+    }
+
+    static String cleanAddress(String a) {
+        StringBuffer b = new StringBuffer();
+        for (int i = 0; i < a.length(); i++) {
+            char c = a.charAt(i);
+            if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')) b.append(c);
+            else if (c >= 'a' && c <= 'f') b.append((char) (c - 32));
+        }
+        return b.toString();
     }
 
     void inquiry() {
@@ -94,8 +127,12 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     public void inquiryCompleted(int type) {
         String t = type == INQUIRY_COMPLETED ? "dokončeno" : type == INQUIRY_TERMINATED ? "přerušeno" : type == INQUIRY_ERROR ? "CHYBA" : "" + type;
         p.log("bt inquiry done (" + type + " " + t + "), devices " + devices.size());
-        setStatus("Hledání: " + t + ", nalezeno " + devices.size() + (devices.size() == 0
-            ? ". Spáruj telefony v Nastavení Bluetooth 9300 (pak se ukážou hned), nebo zviditelni Android (otevřená obrazovka Bluetooth)." : ""));
+        showDevices("Hledání: " + t);
+    }
+
+    void showDevices(String what) {
+        setStatus(what + ", zařízení " + devices.size() + (devices.size() == 0
+            ? ". Když je 9300 připojená přes Bluetooth k PC, hledání nefunguje: odpoj PC. Nebo zadej adresu Androidu v Nastavení a dej Připojit." : ""));
         if (devices.size() == 0) return;
         deviceList = new List("Vyber GPS", List.IMPLICIT);
         for (int i = 0; i < devices.size(); i++) {
@@ -129,16 +166,33 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         }
     }
 
+    boolean scanChannels;
+
     public void serviceSearchCompleted(int transId, int resp) {
         p.log("bt service search done: resp " + resp + " (1=ok 2=terminated 3=error 4=no records 6=not reachable), url " + serviceUrl);
         if (serviceUrl != null) connect(serviceUrl);
+        else if (scanChannels) {
+            // no service record: try RFCOMM channels directly
+            String[] urls = new String[10];
+            for (int i = 0; i < urls.length; i++)
+                urls[i] = "btspp://" + p.btAddress + ":" + (i + 1) + ";authenticate=false;encrypt=false;master=false";
+            setStatus("Služba SPP nenalezena (kód " + resp + "), zkouším kanály 1-10...");
+            connectAny(urls);
+        }
         else setStatus("Služba SPP nenalezena (kód " + resp + "). Běží na Androidu sdílení GPS?");
+        scanChannels = false;
     }
 
-    void connect(final String url) {
+    String[] urls;
+
+    void connect(String url) {
+        connectAny(new String[] { url });
+    }
+
+    void connectAny(String[] list) {
         stop();
         running = true;
-        serviceUrl = url;
+        urls = list;
         new Thread(this).start();
     }
 
@@ -150,13 +204,25 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     }
 
     public void run() {
-        String url = serviceUrl;
-        setStatus("Připojuji " + url);
-        p.log("bt connect " + url);
+        String url = null;
         long t0 = System.currentTimeMillis();
         int sentences = 0, bytes = 0, fixes = 0;
         try {
-            conn = (StreamConnection) Connector.open(url);
+            for (int i = 0; i < urls.length && running && conn == null; i++) {
+                url = urls[i];
+                setStatus("Připojuji " + url);
+                p.log("bt connect " + url);
+                try {
+                    conn = (StreamConnection) Connector.open(url);
+                } catch (IOException e) {
+                    p.log("  failed after " + (System.currentTimeMillis() - t0) + " ms: " + e);
+                    if (i == urls.length - 1) throw e;
+                }
+            }
+            if (conn == null) return;
+            p.btAddress = cleanAddress(url.substring(8, Math.min(url.length(), 20)));
+            p.save();
+            p.log("bt connected: " + url);
             InputStream in = conn.openInputStream();
             long tc = System.currentTimeMillis();
             p.log("bt connected in " + (tc - t0) + " ms");
