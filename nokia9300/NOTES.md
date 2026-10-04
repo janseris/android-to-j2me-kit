@@ -30,6 +30,10 @@ Other measured values (JavaSpecs / JBenchmark):
   `totalMemory` 16777216) and 44 mutable 256×256 images before OutOfMemoryError: plenty for map tiles.
 - Timer resolution ~62 ms. JBenchmark 1515; JBenchmark 3D crashes (no JSR-184).
 - Bluetooth 1.1 with the Serial Port Profile (user guide, "Bluetooth connectivity").
+- **While the 9300 has a Bluetooth connection to the PC (PC Suite), it can't search for devices**
+  (the search ends at once with nothing found) **and other devices can't find it.** Disconnect the PC
+  first (observed 2026-10-04). So a Bluetooth GPS and a PC Suite Bluetooth connection don't mix:
+  install apps over USB or the browser (`ota/`) when testing Bluetooth GPS.
 - Unsigned MIDlets should be allowed Bluetooth and files after a permission prompt (MIDP 2.0 untrusted domain); not confirmed on the phone yet (`probe/`).
 
 ## Signing is impossible, so: no sockets, no Java TLS
