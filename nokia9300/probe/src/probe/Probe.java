@@ -20,14 +20,14 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/1.4 (+https://github.com/janseris/android-to-j2me-kit)";
+    String userAgent = "Probe9300/1.5 (+https://github.com/janseris/android-to-j2me-kit)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
 
     static final Command BACK = new Command("Zpět", Command.BACK, 1);
     static final Command EXIT = new Command("Konec", Command.EXIT, 9);
-    static final Command OK = new Command("OK", Command.OK, 1);
+    static final Command OK = new Command("Uložit", Command.SCREEN, 1);   // SCREEN: shown on a side button on the 9300, OK went to the menu
 
     public Probe() { app = this; }
 
