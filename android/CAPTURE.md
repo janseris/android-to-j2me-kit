@@ -57,6 +57,18 @@ match requests to actions later.
 **Turn the proxy off afterwards** (`.\proxy_off.ps1`), or the phone has no internet whenever
 mitmproxy isn't running.
 
+### Capturing a login
+
+Apps often log in through a web page in the browser (Chrome / Custom Tab) and get a code back
+through a redirect to the app. To see the whole flow:
+
+- Add the login hosts to `--allow-hosts` (Seznam: `seznam\.cz`). Chrome on Android trusts
+  user-installed CAs, so the login page is captured too (Firefox doesn't by default).
+- **Capture the login into its own file** (`capture.bat "..." myapp_login`). It contains your
+  password in plain text and the session tokens. Keep it private, never commit it, and log out
+  in the app afterwards (and change the password if the file was shared by mistake).
+- `flowdump.py` masks passwords, tokens, codes and cookies in its output unless `--show-secrets`.
+
 ## 4. Decode the capture
 
 Use the `.flow` file; the `.har` mangles binary bodies.

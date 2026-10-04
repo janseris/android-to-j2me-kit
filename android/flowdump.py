@@ -7,11 +7,36 @@ Dump a mitmproxy capture (.flow) without installing mitmproxy.
   python flowdump.py capture.flow --out bodies/   # save every request/response body to files
   python flowdump.py capture.flow --frpc          # decode Seznam FastRPC bodies (frpc.py) as JSON
 
+Passwords, tokens, codes and cookies are masked in the output (--show-secrets to see them).
+
 A .flow file is a sequence of tnetstrings (mitmproxy's own format). This reader handles
 the fields needed for HTTP flows; bodies are stored decompressed only if mitmproxy did it,
 so gzip/br bodies are decoded here when Content-Encoding says so.
 """
-import sys, os, json, gzip, zlib, argparse
+import sys, os, re, json, gzip, zlib, argparse
+
+# Secrets are masked in the printed output unless --show-secrets is given (saved --out bodies are raw).
+SECRET_HEADERS = ('authorization', 'cookie', 'set-cookie', 'x-csrf-token', 'x-seznam-token')
+SECRET_KEYS = re.compile(r'(pass(word|wd)?|heslo|secret|token|code_verifier|refresh|session|sid|otp|pin|(^|[^a-z])code$)', re.I)
+
+def mask(v):
+    v = str(v)
+    return v if len(v) <= 8 else v[:4] + '...(%d chars)' % len(v)
+
+def redact_text(t):
+    # form bodies and query strings: key=value&...
+    t = re.sub(r'([?&]|^)([^=&\s]+)=([^&\s]*)',
+               lambda m: m.group(1) + m.group(2) + '=' + (mask(m.group(3)) if SECRET_KEYS.search(m.group(2)) else m.group(3)), t)
+    # JSON: "key": "value"
+    return re.sub(r'"([^"]+)"\s*:\s*"([^"]*)"',
+                  lambda m: '"%s": "%s"' % (m.group(1), mask(m.group(2)) if SECRET_KEYS.search(m.group(1)) else m.group(2)), t)
+
+def redact_obj(o):
+    if isinstance(o, dict):
+        return {k: (mask(v) if isinstance(v, str) and SECRET_KEYS.search(k) else redact_obj(v)) for k, v in o.items()}
+    if isinstance(o, list):
+        return [redact_obj(x) for x in o]
+    return o
 
 def tns_load(f):
     """Read one tnetstring from file f; returns None at EOF."""
@@ -83,6 +108,7 @@ def main():
     ap.add_argument('-v', action='store_true', help='headers and text bodies')
     ap.add_argument('--out', help='folder for raw bodies (NNN_req.bin / NNN_resp.bin)')
     ap.add_argument('--frpc', action='store_true', help='decode FastRPC bodies (CA 11 magic) with frpc.py')
+    ap.add_argument('--show-secrets', action='store_true', help="don't mask passwords, tokens and cookies")
     a = ap.parse_args()
     if a.frpc:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -93,7 +119,8 @@ def main():
         url = '%s://%s%s' % (s(rq.get('scheme', 'https')), s(rq.get('host', '')), s(rq.get('path', '')))
         qb, sb = body(rq), body(rs) if rs else b''
         status = rs.get('status_code', '-') if rs else '-'
-        print('%03d %s %s -> %s  (%d B / %d B)' % (n, s(rq.get('method', '')), url, status, len(qb), len(sb)))
+        shown_url = url if a.show_secrets else redact_text(url)
+        print('%03d %s %s -> %s  (%d B / %d B)' % (n, s(rq.get('method', '')), shown_url, status, len(qb), len(sb)))
         if a.out:
             open(os.path.join(a.out, '%03d_req.bin' % n), 'wb').write(qb)
             open(os.path.join(a.out, '%03d_resp.bin' % n), 'wb').write(sb)
@@ -101,13 +128,21 @@ def main():
             if not msg: continue
             if a.v:
                 print('  --- %s headers' % label)
-                for k, v in msg.get('headers') or []: print('    %s: %s' % (s(k), s(v)))
+                for k, v in msg.get('headers') or []:
+                    v = s(v)
+                    if not a.show_secrets:
+                        v = mask(v) if s(k).lower() in SECRET_HEADERS else redact_text(v) if s(k).lower() == 'location' else v
+                    print('    %s: %s' % (s(k), v))
             if a.frpc and b[:2] == b'\xca\x11':
                 print('  --- %s (FastRPC)' % label)
-                print('    ' + json.dumps(frpc.decode(b), ensure_ascii=False, indent=1).replace('\n', '\n    '))
+                o = frpc.decode(b)
+                if not a.show_secrets: o = redact_obj(o)
+                print('    ' + json.dumps(o, ensure_ascii=False, indent=1).replace('\n', '\n    '))
             elif a.v and b and is_text(b, header(msg.get('headers'), 'content-type')):
                 print('  --- %s body' % label)
-                print('    ' + s(b)[:4000].replace('\n', '\n    '))
+                t = s(b)[:4000]
+                if not a.show_secrets: t = redact_text(t)
+                print('    ' + t.replace('\n', '\n    '))
 
 if __name__ == '__main__':
     main()
