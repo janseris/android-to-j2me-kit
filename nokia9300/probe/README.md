@@ -26,3 +26,11 @@ Bluetooth GPS Output, BlueNMEA, …), pair the phones, then *Bluetooth GPS → H
 
 Build: `build.bat` (uses pubtran-j2me's bundled JDK 8, stub jars and ProGuard). Output `bin/probe9300.jar` + `.jad`.
 Install: copy the jar next to `../ota/ota_server.js` and download it in the phone's browser, or send it over Bluetooth.
+
+**Where to test what:**
+
+| Question | Fastest place |
+|---|---|
+| Does the server answer, right URL/key, image format, does the phone decode it | **KEmulator**: `run_kemulator.bat` (PC's Java networking and TLS) |
+| Does the server's TLS work with the phone's TLS patch | **tlsprobe** on the PC: `tlsprobe -sni tile.openstreetmap.org/13/4422/2777.png` |
+| Heap limit, Bluetooth GPS, what the phone really sends (User-Agent), real speed | **the phone** |
