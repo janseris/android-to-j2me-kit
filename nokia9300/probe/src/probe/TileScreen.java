@@ -72,6 +72,7 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
         int[] ax = new int[count], ay = new int[count];
         tiles = new Image[0];
         System.gc();
+        // OSM tile policy: only tiles the user is looking at, no prefetch, attribution visible
         p.log("--- tiles z" + zoom + " x " + x0 + ".." + x1 + " y " + y0 + ".." + y1 + " (" + count + "), screen " + w + "x" + h);
         bytesTotal = 0; msTotal = 0;
         int k = 0, max = 1 << zoom;
@@ -98,6 +99,7 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
         InputStream in = null;
         try {
             c = (HttpConnection) Connector.open(url);
+            if (p.userAgent.length() > 0) c.setRequestProperty("User-Agent", p.userAgent);
             int code = c.getResponseCode();
             long tResp = System.currentTimeMillis();
             String type = c.getType();
@@ -179,7 +181,7 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
         g.drawLine(w / 2, h / 2 - 6, w / 2, h / 2 + 6);
         Font f = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
         g.setFont(f);
-        String s = "z" + zoom + "  " + status + "   (c) Mapy.com";
+        String s = "z" + zoom + "  " + status + "   " + (p.tileUrl.indexOf("openstreetmap") >= 0 ? "(c) OpenStreetMap contributors" : "(c) Mapy.com");
         g.setColor(0x000000);
         g.fillRect(0, h - f.getHeight() - 2, f.stringWidth(s) + 6, f.getHeight() + 2);
         g.setColor(0xFFFFFF);

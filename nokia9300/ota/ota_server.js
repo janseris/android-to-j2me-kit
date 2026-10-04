@@ -59,6 +59,13 @@ http.createServer((req, res) => {
         });
         return;
     }
+    if (url === "/headers") { // echo the request headers: shows what the phone really sends (e.g. User-Agent)
+        const text = req.method + " " + req.url + "\n" + Object.keys(req.headers).map(h => h + ": " + req.headers[h]).join("\n") + "\n";
+        console.log(text);
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end(text);
+        return;
+    }
     if (url === "/upload") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end('<html><body><h3>Upload</h3><form method="post" action="/upload" enctype="multipart/form-data">'

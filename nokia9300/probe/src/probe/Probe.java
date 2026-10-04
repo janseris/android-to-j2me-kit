@@ -19,6 +19,10 @@ public class Probe extends MIDlet implements CommandListener {
     String pc = "192.168.137.1:8000";
     String tileUrl = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     String apiKey = "";
+    /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
+    String userAgent = "Probe9300/1.1 (+https://github.com/janseris/android-to-j2me-kit)";
+    static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
+    static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
 
     static final Command BACK = new Command("Zpět", Command.BACK, 1);
@@ -35,7 +39,8 @@ public class Probe extends MIDlet implements CommandListener {
         menu.append("Paměť (heap, obrázky)", null);
         menu.append("Bluetooth GPS", null);
         menu.append("Mapové dlaždice", null);
-        menu.append("Nastavení (PC, URL, klíč)", null);
+        menu.append("Nastavení (PC, URL, klíč, User-Agent)", null);
+        menu.append("Test hlaviček (co telefon posílá)", null);
         menu.append("Log", null);
         menu.append("Odeslat log na PC", null);
         menu.addCommand(EXIT);
@@ -62,8 +67,9 @@ public class Probe extends MIDlet implements CommandListener {
                 case 1: show(new BtGpsScreen()); break;
                 case 2: show(new TileScreen()); break;
                 case 3: settings(); break;
-                case 4: showLog(); break;
-                case 5: sendLog(); break;
+                case 4: headersTest(); break;
+                case 5: showLog(); break;
+                case 6: sendLog(); break;
             }
         }
     }
@@ -113,6 +119,32 @@ public class Probe extends MIDlet implements CommandListener {
         }.start();
     }
 
+    /** GET http://PC/headers with our User-Agent; ota_server.js echoes the headers it received. */
+    void headersTest() {
+        new Thread() {
+            public void run() {
+                HttpConnection c = null;
+                InputStream in = null;
+                try {
+                    c = (HttpConnection) Connector.open("http://" + pc + "/headers");
+                    c.setRequestProperty("User-Agent", userAgent);
+                    int code = c.getResponseCode();
+                    in = c.openInputStream();
+                    byte[] b = TileScreen.readAll(in, (int) c.getLength());
+                    String text = new String(b, "UTF-8");
+                    log("--- headers test: HTTP " + code + ", server received:\n" + text);
+                    message("Hlavičky", text);
+                } catch (Throwable e) {
+                    log("headers test failed: " + e);
+                    message("Chyba", e.toString());
+                } finally {
+                    try { if (in != null) in.close(); } catch (Throwable e) {}
+                    try { if (c != null) c.close(); } catch (Throwable e) {}
+                }
+            }
+        }.start();
+    }
+
     static String post(String url, String body) throws IOException {
         HttpConnection c = (HttpConnection) Connector.open(url);
         try {
@@ -136,13 +168,19 @@ public class Probe extends MIDlet implements CommandListener {
         final TextField tUrl = new TextField("URL dlaždic ({z} {x} {y} {key})", tileUrl, 300, TextField.ANY);
         final TextField tKey = new TextField("API klíč", apiKey, 128, TextField.ANY);
         final TextField tBt = new TextField("BT adresa GPS (12 hex, prázdné = hledat)", btAddress, 12, TextField.ANY);
-        f.append(tPc); f.append(tUrl); f.append(tKey); f.append(tBt);
+        final TextField tUa = new TextField("User-Agent", userAgent, 200, TextField.ANY);
+        final ChoiceGroup preset = new ChoiceGroup("Předvolba URL", Choice.EXCLUSIVE,
+            new String[] { "ponechat", "Mapy.com (API klíč)", "OpenStreetMap" }, null);
+        f.append(tPc); f.append(preset); f.append(tUrl); f.append(tKey); f.append(tUa); f.append(tBt);
         f.addCommand(OK); f.addCommand(BACK);
         f.setCommandListener(new CommandListener() {
             public void commandAction(Command c, Displayable d) {
                 if (c == OK) {
                     pc = tPc.getString().trim();
                     tileUrl = tUrl.getString().trim();
+                    if (preset.getSelectedIndex() == 1) tileUrl = URL_MAPY;
+                    if (preset.getSelectedIndex() == 2) tileUrl = URL_OSM;
+                    userAgent = tUa.getString().trim();
                     apiKey = tKey.getString().trim();
                     btAddress = tBt.getString().trim();
                     save();
@@ -159,6 +197,7 @@ public class Probe extends MIDlet implements CommandListener {
             if (rs.getNumRecords() > 0) {
                 DataInputStream in = new DataInputStream(new ByteArrayInputStream(rs.getRecord(1)));
                 pc = in.readUTF(); tileUrl = in.readUTF(); apiKey = in.readUTF(); btAddress = in.readUTF();
+                try { userAgent = in.readUTF(); } catch (EOFException e) {}
             }
             rs.closeRecordStore();
         } catch (Throwable e) {}
@@ -168,7 +207,7 @@ public class Probe extends MIDlet implements CommandListener {
         try {
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             DataOutputStream o = new DataOutputStream(bo);
-            o.writeUTF(pc); o.writeUTF(tileUrl); o.writeUTF(apiKey); o.writeUTF(btAddress);
+            o.writeUTF(pc); o.writeUTF(tileUrl); o.writeUTF(apiKey); o.writeUTF(btAddress); o.writeUTF(userAgent);
             byte[] b = bo.toByteArray();
             RecordStore rs = RecordStore.openRecordStore("probe", true);
             if (rs.getNumRecords() == 0) rs.addRecord(b, 0, b.length);
