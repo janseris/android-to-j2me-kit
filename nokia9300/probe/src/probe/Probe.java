@@ -17,10 +17,10 @@ public class Probe extends MIDlet implements CommandListener {
     List menu;
     final StringBuffer log = new StringBuffer();
     String pc = "192.168.137.1:8000";
-    String tileUrl = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
+    String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/1.5 (+https://github.com/janseris/android-to-j2me-kit)";
+    String userAgent = "Probe9300/1.6 (+https://github.com/janseris/android-to-j2me-kit)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -198,6 +198,8 @@ public class Probe extends MIDlet implements CommandListener {
                 DataInputStream in = new DataInputStream(new ByteArrayInputStream(rs.getRecord(1)));
                 pc = in.readUTF(); tileUrl = in.readUTF(); apiKey = in.readUTF(); btAddress = in.readUTF();
                 try { userAgent = in.readUTF(); } catch (EOFException e) {}
+                // a Mapy.com URL without a key only gives HTTP 401: use OSM instead
+                if (tileUrl.indexOf("{key}") >= 0 && apiKey.length() == 0) tileUrl = URL_OSM;
             }
             rs.closeRecordStore();
         } catch (Throwable e) {}
