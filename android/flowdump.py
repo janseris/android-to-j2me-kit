@@ -26,10 +26,14 @@ def mask(v):
 def redact_text(t):
     # form bodies and query strings: key=value&...
     t = re.sub(r'([?&]|^)([^=&\s]+)=([^&\s]*)',
-               lambda m: m.group(1) + m.group(2) + '=' + (mask(m.group(3)) if SECRET_KEYS.search(m.group(2)) else m.group(3)), t)
-    # JSON: "key": "value"
-    return re.sub(r'"([^"]+)"\s*:\s*"([^"]*)"',
-                  lambda m: '"%s": "%s"' % (m.group(1), mask(m.group(2)) if SECRET_KEYS.search(m.group(1)) else m.group(2)), t)
+               lambda m: m.group(1) + m.group(2) + '=' + (mask_secret(m.group(3)) if re.search(r'pass|heslo', m.group(2), re.I) else mask(m.group(3)) if SECRET_KEYS.search(m.group(2)) else m.group(3)), t)
+    # JSON: "key": "value" (values may contain escaped quotes)
+    return re.sub(r'"((?:[^"\\]|\\.)+)"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                  lambda m: '"%s": "%s"' % (m.group(1), mask_secret(m.group(2)) if SECRET_KEYS.search(m.group(1)) else m.group(2)), t)
+
+def mask_secret(v):
+    # passwords: never show any part
+    return '***(%d chars)' % len(v)
 
 def redact_obj(o):
     if isinstance(o, dict):
