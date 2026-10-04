@@ -92,7 +92,11 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     }
 
     public void inquiryCompleted(int type) {
-        p.log("bt inquiry done (" + type + "), devices " + devices.size());
+        String t = type == INQUIRY_COMPLETED ? "dokončeno" : type == INQUIRY_TERMINATED ? "přerušeno" : type == INQUIRY_ERROR ? "CHYBA" : "" + type;
+        p.log("bt inquiry done (" + type + " " + t + "), devices " + devices.size());
+        setStatus("Hledání: " + t + ", nalezeno " + devices.size() + (devices.size() == 0
+            ? ". Spáruj telefony v Nastavení Bluetooth 9300 (pak se ukážou hned), nebo zviditelni Android (otevřená obrazovka Bluetooth)." : ""));
+        if (devices.size() == 0) return;
         deviceList = new List("Vyber GPS", List.IMPLICIT);
         for (int i = 0; i < devices.size(); i++) {
             RemoteDevice d = (RemoteDevice) devices.elementAt(i);
@@ -126,7 +130,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     }
 
     public void serviceSearchCompleted(int transId, int resp) {
-        p.log("bt service search done: resp " + resp + ", url " + serviceUrl);
+        p.log("bt service search done: resp " + resp + " (1=ok 2=terminated 3=error 4=no records 6=not reachable), url " + serviceUrl);
         if (serviceUrl != null) connect(serviceUrl);
         else setStatus("Služba SPP nenalezena (kód " + resp + "). Běží na Androidu sdílení GPS?");
     }

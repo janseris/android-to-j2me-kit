@@ -19,18 +19,10 @@ Tile URL presets:
   [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) requires a User-Agent that names
   the app (browser or library defaults get blocked), visible "(c) OpenStreetMap contributors", caching for
   at least 7 days, and no prefetching or bulk/offline downloads. The probe sends
-  `Probe9300/1.1 (+https://github.com/janseris/android-to-j2me-kit)` and loads only the visible tiles.
+  `Probe9300/1.2 (+https://github.com/janseris/android-to-j2me-kit)` and loads only the visible tiles.
 
 **Android phone as the GPS:** run an app that shares the phone's GPS as NMEA over Bluetooth (Share GPS,
 Bluetooth GPS Output, BlueNMEA, …), pair the phones, then *Bluetooth GPS → Hledat zařízení* and pick the phone.
 
 Build: `build.bat` (uses pubtran-j2me's bundled JDK 8, stub jars and ProGuard). Output `bin/probe9300.jar` + `.jad`.
 Install: copy the jar next to `../ota/ota_server.js` and download it in the phone's browser, or send it over Bluetooth.
-
-**Where to test what:**
-
-| Question | Fastest place |
-|---|---|
-| Does the server answer, right URL/key, image format, does the phone decode it | **KEmulator**: `run_kemulator.bat` (PC's Java networking and TLS) |
-| Does the server's TLS work with the phone's TLS patch | **tlsprobe** on the PC: `tlsprobe -sni tile.openstreetmap.org/13/4422/2777.png` |
-| Heap limit, Bluetooth GPS, what the phone really sends (User-Agent), real speed | **the phone** |

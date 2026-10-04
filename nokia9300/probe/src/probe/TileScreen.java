@@ -21,6 +21,7 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
     String status = "";
     volatile boolean loading;
     int bytesTotal; long msTotal;
+    int errors; String lastError = "";
 
     TileScreen() {
         addCommand(RELOAD); addCommand(GPS); addCommand(Probe.BACK);
@@ -74,7 +75,7 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
         System.gc();
         // OSM tile policy: only tiles the user is looking at, no prefetch, attribution visible
         p.log("--- tiles z" + zoom + " x " + x0 + ".." + x1 + " y " + y0 + ".." + y1 + " (" + count + "), screen " + w + "x" + h);
-        bytesTotal = 0; msTotal = 0;
+        bytesTotal = 0; msTotal = 0; errors = 0; lastError = "";
         int k = 0, max = 1 << zoom;
         for (int y = y0; y <= y1; y++) {
             for (int x = x0; x <= x1; x++) {
@@ -86,7 +87,8 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
             }
         }
         tx = ax; ty = ay; tiles = im;
-        status = count + " dlaždic, " + (bytesTotal / 1024) + " KB, " + msTotal + " ms";
+        status = count + " dlaždic, " + (bytesTotal / 1024) + " KB, " + msTotal + " ms"
+            + (errors > 0 ? ", CHYBY " + errors + ": " + lastError : "");
         p.memLine("after tiles");
         loading = false;
         repaint();
@@ -111,17 +113,30 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
             msTotal += tBody - t0;
             String magic = magic(b);
             if (code != 200) {
+                errors++;
+                lastError = "HTTP " + code + " " + type;
                 p.log("tile " + zoom + "/" + x + "/" + y + ": HTTP " + code + " " + type + " " + b.length + " B: "
                     + new String(b, 0, Math.min(b.length, 200)));
                 return null;
             }
             long td0 = System.currentTimeMillis();
-            Image im = Image.createImage(b, 0, b.length);
+            Image im;
+            try {
+                im = Image.createImage(b, 0, b.length);
+            } catch (Throwable e) {
+                errors++;
+                lastError = "dekódování " + magic + " " + b.length + " B: " + e;
+                p.log("tile " + zoom + "/" + x + "/" + y + ": decode failed, " + b.length + " B " + type + " (" + magic + "): " + e
+                    + ", start: " + hex(b, 16));
+                return null;
+            }
             long td = System.currentTimeMillis() - td0;
             p.log("tile " + zoom + "/" + x + "/" + y + ": " + b.length + " B " + type + " (" + magic + "), response "
                 + (tResp - t0) + " ms, body " + (tBody - tResp) + " ms, decode " + td + " ms");
             return im;
         } catch (Throwable e) {
+            errors++;
+            lastError = e.toString();
             p.log("tile " + zoom + "/" + x + "/" + y + " failed after " + (System.currentTimeMillis() - t0) + " ms: " + e);
             return null;
         } finally {
@@ -149,6 +164,15 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
         int r;
         while ((r = in.read(buf)) > 0) o.write(buf, 0, r);
         return o.toByteArray();
+    }
+
+    static String hex(byte[] b, int n) {
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < Math.min(n, b.length); i++) {
+            int v = b[i] & 0xff;
+            sb.append("0123456789abcdef".charAt(v >> 4)).append("0123456789abcdef".charAt(v & 15)).append(' ');
+        }
+        return sb.toString();
     }
 
     static String magic(byte[] b) {
@@ -181,10 +205,14 @@ class TileScreen extends Canvas implements CommandListener, Runnable {
         g.drawLine(w / 2, h / 2 - 6, w / 2, h / 2 + 6);
         Font f = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
         g.setFont(f);
-        String s = "z" + zoom + "  " + status + "   " + (p.tileUrl.indexOf("openstreetmap") >= 0 ? "(c) OpenStreetMap contributors" : "(c) Mapy.com");
+        String attr = p.tileUrl.indexOf("openstreetmap") >= 0 ? "(c) OpenStreetMap contributors" : "(c) Mapy.com";
+        String s1 = "z" + zoom + "  " + status;
+        int fh = f.getHeight();
         g.setColor(0x000000);
-        g.fillRect(0, h - f.getHeight() - 2, f.stringWidth(s) + 6, f.getHeight() + 2);
+        g.fillRect(0, h - 2 * fh - 3, w, 2 * fh + 3);
+        g.setColor(errors > 0 ? 0xEE6C6C : 0xFFFFFF);
+        g.drawString(s1.length() > 90 ? s1.substring(0, 90) : s1, 3, h - 2 * fh - 2, Graphics.TOP | Graphics.LEFT);
         g.setColor(0xFFFFFF);
-        g.drawString(s, 3, h - f.getHeight() - 1, Graphics.TOP | Graphics.LEFT);
+        g.drawString(attr, 3, h - fh - 1, Graphics.TOP | Graphics.LEFT);
     }
 }

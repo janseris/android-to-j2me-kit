@@ -26,6 +26,8 @@ Other measured values (JavaSpecs / JBenchmark):
 - Canvas size **523×168** (full screen is 640×200, the rest is the command button area), 65536 colours, double buffered.
 - `Runtime.totalMemory()` reported 409–640 KB; the heap grows on demand, so measure the real
   limit with `probe/` (*Paměť*) before planning caches.
+- **Measured with `probe/` (2026-10-04):** the app got **16 MB** of heap (`byte[]` 16192 KB,
+  `totalMemory` 16777216) and 44 mutable 256×256 images before OutOfMemoryError: plenty for map tiles.
 - Timer resolution ~62 ms. JBenchmark 1515; JBenchmark 3D crashes (no JSR-184).
 - Bluetooth 1.1 with the Serial Port Profile (user guide, "Bluetooth connectivity").
 - Unsigned MIDlets should be allowed Bluetooth and files after a permission prompt (MIDP 2.0 untrusted domain); not confirmed on the phone yet (`probe/`).
