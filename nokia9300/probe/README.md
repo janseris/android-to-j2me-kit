@@ -19,7 +19,7 @@ Tile URL presets:
   [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) requires a User-Agent that names
   the app (browser or library defaults get blocked), visible "(c) OpenStreetMap contributors", caching for
   at least 7 days, and no prefetching or bulk/offline downloads. The probe sends
-  `Probe9300/1.3 (+https://github.com/janseris/android-to-j2me-kit)` and loads only the visible tiles.
+  `Probe9300/1.4 (+https://github.com/janseris/android-to-j2me-kit)` and loads only the visible tiles.
 
 **Android phone as the GPS:** run an app that shares the phone's GPS as NMEA over Bluetooth (Share GPS,
 Bluetooth GPS Output, BlueNMEA, …), pair the phones, then *Bluetooth GPS → Hledat zařízení* and pick the phone.

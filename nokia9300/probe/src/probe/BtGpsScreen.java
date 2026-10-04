@@ -13,12 +13,13 @@ import javax.microedition.lcdui.*;
  */
 class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Runnable {
     static final Command SEARCH = new Command("Hledat zařízení", Command.SCREEN, 1);
-    static final Command CONNECT = new Command("Připojit (uložená adresa)", Command.SCREEN, 2);
+    static final Command CONNECT = new Command("Připojit na adresu", Command.SCREEN, 2);
     static final Command STOP = new Command("Odpojit", Command.STOP, 3);
     static final Command KNOWN = new Command("Spárovaná zařízení (bez hledání)", Command.SCREEN, 1);
     static final UUID SPP = new UUID(0x1101);
 
     final Probe p = Probe.app;
+    final TextField address = new TextField("BT adresa Androidu (Nastavení > O telefonu > Stav)", "", 17, TextField.ANY);
     final StringItem status = new StringItem("Stav", "");
     final StringItem pos = new StringItem("Poloha", "-");
     final StringItem raw = new StringItem("Poslední věta", "-");
@@ -33,7 +34,8 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
 
     BtGpsScreen() {
         super("Bluetooth GPS");
-        append(status); append(pos); append(stats); append(raw);
+        address.setString(p.btAddress);
+        append(address); append(status); append(pos); append(stats); append(raw);
         addCommand(KNOWN); addCommand(SEARCH); addCommand(CONNECT); addCommand(STOP); addCommand(Probe.BACK);
         setCommandListener(this);
         try {
@@ -65,9 +67,10 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         else if (c == SEARCH) inquiry();
         else if (c == KNOWN) known();
         else if (c == CONNECT) {
-            String a = cleanAddress(p.btAddress);
-            if (a.length() != 12) { setStatus("Zadej BT adresu Androidu v Nastavení (Android: Nastavení > O telefonu > Stav > Adresa Bluetooth)."); return; }
+            String a = cleanAddress(address.getString());
+            if (a.length() != 12) { setStatus("Zadej BT adresu Androidu nahoře (12 hex znaků, např. 00:11:22:AA:BB:CC). Android: Nastavení > O telefonu > Stav > Adresa Bluetooth."); return; }
             p.btAddress = a;
+            p.save();
             // no RemoteDevice object without inquiry: make one from the address (protected constructor)
             RemoteDevice rd = new RemoteDevice(a) {};
             scanChannels = true;
@@ -150,6 +153,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     void searchService(RemoteDevice d) {
         p.btAddress = d.getBluetoothAddress();
         p.save();
+        address.setString(p.btAddress);
         serviceUrl = null;
         try {
             agent.searchServices(null, new UUID[] { SPP }, d, this);
