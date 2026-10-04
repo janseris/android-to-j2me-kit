@@ -28,6 +28,7 @@ app *Jízdní řády* (project repo:
 | `android/dex_classes.py` | Decompile chosen classes from `classes.dex` with androguard |
 | `android/make_sprite.py` | Build a J2ME icon strip from the app's drawables |
 | `nokia9300/NOTES.md` | Device facts, installing, signing (impossible), HTTPS, networking, rules that keep apps from hanging |
+| `nokia9300/probe/` | Test MIDlet: heap limit, Bluetooth GPS (NMEA over SPP, e.g. from an Android phone), map tile download/decode; sends its log to the PC |
 | `nokia9300/ota/` | HTTP server for installing jars and DLLs from the phone's browser, and receiving logs |
 | `nokia9300/ssladaptor/` | The TLS 1.2 patch that works with Java (v20-fix10) and its log build; `ssllog.py` summarises its log |
 | `tlsprobe/` | Desktop BearSSL probe that connects the way the phone's TLS patch does |

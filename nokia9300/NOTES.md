@@ -2,8 +2,33 @@
 
 - **Platform:** Series 80 v2 on **Symbian 7.0s, EKA1**. Not S60: S60v3+ (Symbian 9, EKA2) patches
   and tricks don't apply. Screen 640×200 (inner display), ARM9 at ~150 MHz, slow.
-- **Java:** MIDP 2.0, CLDC 1.1 (so `double` works). Compile against `cldcapi11.jar`.
+- **Java:** MIDP 2.0, CLDC 1.1 (so `double` works; no `Math.log`/`atan2`, write your own).
+  Compile against `cldcapi11.jar`.
 - The application manager shows only *major.minor* of `MIDlet-Version`.
+
+### Java APIs on the phone
+
+From the user guide (*Nokia 9300 User Guide*, "Java MIDP", p. 79) and the
+*JavaSpecs* test MIDlet run on our 9300 (firmware 05.22):
+
+| API | Supported |
+|---|---|
+| CLDC 1.1, MIDP 2.0, JTWI 1.0 (JSR-185) | yes |
+| **Bluetooth, JSR-82** (`javax.bluetooth`; SPP via `btspp://`) | **yes**; OBEX (`javax.obex`) no |
+| File and PIM, JSR-75 | yes (user guide: "Java File", "Java PIM") |
+| WMA (JSR-120), Mobile Media (JSR-135, also video), Nokia UI | yes |
+| **Location, JSR-179** | **no**, and no GPS: position only from an external Bluetooth GPS (NMEA) |
+| Web services (172), security (177), SIP (180), 3D (184), WMA 2.0 (205) | no |
+| Pointer events | no (keyboard only; key repeat events yes) |
+
+Other measured values (JavaSpecs / JBenchmark):
+
+- Canvas size **523×168** (full screen is 640×200, the rest is the command button area), 65536 colours, double buffered.
+- `Runtime.totalMemory()` reported 409–640 KB; the heap grows on demand, so measure the real
+  limit with `probe/` (*Paměť*) before planning caches.
+- Timer resolution ~62 ms. JBenchmark 1515; JBenchmark 3D crashes (no JSR-184).
+- Bluetooth 1.1 with the Serial Port Profile (user guide, "Bluetooth connectivity").
+- Unsigned MIDlets should be allowed Bluetooth and files after a permission prompt (MIDP 2.0 untrusted domain); not confirmed on the phone yet (`probe/`).
 
 ## Signing is impossible, so: no sockets, no Java TLS
 
