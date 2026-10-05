@@ -208,7 +208,10 @@ with `Connection: close`, no `Accept`.
 | JPEG tile decode | 200-235 ms (photo 117x200: 60-80 ms) |
 | RMS 30 KB write / read | 150-280 / 15-170 ms |
 
-- **An unsigned MIDlet CAN open `socket://`** (no prompt): own HTTP/1.1 with keep-alive is possible.
+- An unsigned MIDlet can open `socket://`, **but not to ports 80, 443 (and 8080)**: Probe 2.8's
+  keep-alive test got `SecurityException` for `socket://host:80` and `ssl://host:443` (MIDP forbids
+  untrusted MIDlets those ports, so they can't bypass HttpConnection). `socket://PC:8001` works.
+  So no own HTTP keep-alive to normal web servers from Java.
 - `http://127.0.0.1` is allowed too (-34 connection refused: nothing listening).
 - `routing.openstreetmap.de` over HTTPS: `CertificateException` (use HTTP).
 - Overpass mirrors: private.coffee (HTTP 404, HTTPS hangs) and maps.mail.ru (HTTP -> 301, HTTPS
