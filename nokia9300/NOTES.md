@@ -148,5 +148,9 @@ Learned the hard way (pubtran-j2me `LESSONS_NOKIA_9300.md`):
   Canvas (`keyPressed`), `hideNotify()` is not called and `isShown()` stays true, so the Canvas can't
   tell. A Canvas that uses the arrows (map cursor) should have **no Commands** and draw its own menu,
   opened by a key it receives (Tab; unknown key codes are logged).
+- **Side buttons without Commands**: on a Canvas with no Commands the four side (CBA) buttons
+  arrive in `keyPressed` as key codes MIDP doesn't name (negative, not arrows/Enter). Mapy 9300
+  learns them once ("press the top side button"... the bottom one, saved in RMS) and maps them to
+  its own actions; it draws the button labels itself in a bar on the right. Works on the phone.
 - The Enter that picks an Akce menu item can reach the Canvas as well: act on Enter only on release,
   and not when a command arrived meanwhile.
