@@ -8,6 +8,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const net = require("net");
 
 const port = Number(process.argv[2] || 8000);
 const dir = __dirname;
@@ -101,3 +102,29 @@ http.createServer((req, res) => {
     const ifs = os.networkInterfaces();
     for (const n in ifs) for (const a of ifs[n]) if (a.family === "IPv4" && !a.internal) console.log("  http://" + a.address + ":" + port + "/   (" + n + ")");
 });
+
+// Raw echo on port+1: answers with the exact bytes of the request (header lines as sent, before any
+// HTTP parsing), escaped, and saves them to uploads/. Shows what the phone's HTTP stack really sends.
+net.createServer(sock => {
+    let buf = Buffer.alloc(0);
+    sock.on("data", d => {
+        buf = Buffer.concat([buf, d]);
+        const end = buf.indexOf("\r\n\r\n");
+        if (end < 0 && buf.length < 16384) return;
+        const raw = buf.slice(0, end < 0 ? buf.length : end + 4);
+        let text = "";
+        for (const b of raw) {
+            if (b === 13) text += "\\r";
+            else if (b === 10) text += "\\n\n";
+            else if (b < 32 || b > 126) text += "\\x" + b.toString(16).padStart(2, "0");
+            else text += String.fromCharCode(b);
+        }
+        text = "raw request, " + raw.length + " B:\n" + text;
+        console.log(text);
+        fs.mkdirSync(path.join(dir, "uploads"), { recursive: true });
+        fs.writeFileSync(path.join(dir, "uploads", new Date().toISOString().replace(/[:.]/g, "-") + "_raw.txt"), text);
+        const body = Buffer.from(text, "latin1");
+        sock.end(Buffer.concat([Buffer.from("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + body.length + "\r\nConnection: close\r\n\r\n", "latin1"), body]));
+    });
+    sock.on("error", () => {});
+}).listen(port + 1, "0.0.0.0", () => console.log("raw request echo on port " + (port + 1)));
