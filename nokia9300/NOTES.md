@@ -36,8 +36,17 @@ Other measured values (JavaSpecs / JBenchmark):
   `SymbianOS error -5120` (DNS) or stalls: retrying on a new connection fixed it.
 - Timer resolution ~62 ms. JBenchmark 1515; JBenchmark 3D crashes (no JSR-184).
 - Bluetooth 1.1 with the Serial Port Profile (user guide, "Bluetooth connectivity").
-- **Read Bluetooth streams one byte at a time.** `InputStream.read(byte[])` on a `btspp://` stream crashed
-  the Java comms thread (`E32USER-CBase 40`) right after the first GPS data (probe 1.7); `read()` works.
+- **Bluetooth GPS works (probe 2.1, 2026-10-05, on a bus):** Android phone with *GPS NMEA Tether*
+  (com.stephentaylor.gpsnmeatether) over SPP, 3.5 minutes without a break, 1 position per second,
+  largest gap 1.3 s, delay constant (GPS time vs receive time stayed within -470..+140 ms): real time.
+  Two things were needed:
+  - **Send only GGA + RMC at 1 Hz** (switch off VTG, GSA, GSV; strict NMEA on, keepalive heartbeat
+    off): ~150 B/s. With all sentences (multi-GNSS GSA/GSV, ~1-2 KB/s) the 9300's Java Bluetooth
+    crashed after a few lines: `E32USER-CBase 40` with `read(byte[512])`, `KERN-EXEC 3` in
+    `jes-...-java-comms` with single-byte `read()`.
+  - **Read exactly what `available()` reports** (`read(buf, 0, available)`), sleeping 50 ms when nothing
+    is waiting.
+  Also: don't update Form items from the Bluetooth thread (KERN-EXEC 3 in "main"); draw on a Canvas.
 - `DiscoveryAgent.retrieveDevices(PREKNOWN)` returned no devices although the phones were paired;
   connecting by address works.
 - **While the 9300 has a Bluetooth connection to the PC (PC Suite), it can't search for devices**
