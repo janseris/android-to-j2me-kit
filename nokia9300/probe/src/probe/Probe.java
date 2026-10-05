@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/2.8 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
+    String userAgent = "Probe9300/2.9 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -58,6 +58,7 @@ public class Probe extends MIDlet implements CommandListener {
         menu.append("Test hlaviček: surové bajty (port +1)", null);
         menu.append("VELKÝ TEST (síť http/https, obrázky, úložiště, socket)", null);
         menu.append("Keep-alive test (socket:// a ssl://, jedno spojení)", null);
+        menu.append("Test pomocníka (http://127.0.0.1:8123)", null);
         menu.append("Log", null);
         menu.append("Odeslat log na PC", null);
         menu.addCommand(EXIT);
@@ -89,8 +90,9 @@ public class Probe extends MIDlet implements CommandListener {
                 case 6: rawHeadersTest(); break;
                 case 7: show(new BigTest()); break;
                 case 8: show(new KeepAlive()); break;
-                case 9: showLog(); break;
-                case 10: sendLog(); break;
+                case 9: helperTest(); break;
+                case 10: showLog(); break;
+                case 11: sendLog(); break;
             }
         }
     }
@@ -203,7 +205,7 @@ public class Probe extends MIDlet implements CommandListener {
                 int colon = pc.indexOf(':');
                 String host = colon < 0 ? pc : pc.substring(0, colon);
                 int port = colon < 0 ? 80 : Integer.parseInt(pc.substring(colon + 1));
-                String[] uas = { "Probe9300/2.8", userAgent,
+                String[] uas = { "Probe9300/2.9", userAgent,
                     "Mapy9300/3.6 (J2ME map app; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)" };
                 StringBuffer all = new StringBuffer();
                 for (int i = 0; i < uas.length; i++) {
@@ -226,6 +228,37 @@ public class Probe extends MIDlet implements CommandListener {
                 }
                 log("--- raw headers test:\n" + all);
                 message("Surové hlavičky", all.toString());
+            }
+        }.start();
+    }
+
+    /** Asks the native helper (Pomocnik 9300, a C++ app on this phone) on 127.0.0.1:8123, 3 times. */
+    void helperTest() {
+        new Thread() {
+            public void run() {
+                StringBuffer all = new StringBuffer();
+                for (int i = 0; i < 3; i++) {
+                    HttpConnection c = null;
+                    InputStream in = null;
+                    long t0 = System.currentTimeMillis();
+                    try {
+                        c = (HttpConnection) Connector.open("http://127.0.0.1:8123/test" + (i + 1));
+                        c.setRequestProperty("User-Agent", userAgent);
+                        int code = c.getResponseCode();
+                        in = c.openInputStream();
+                        String text = new String(TileScreen.readAll(in, (int) c.getLength()), "UTF-8");
+                        all.append(i + 1).append(": HTTP ").append(code).append(", ").append(System.currentTimeMillis() - t0).append(" ms: ").append(text.trim()).append('\n');
+                    } catch (Throwable e) {
+                        all.append(i + 1).append(": ").append(e).append(" (").append(System.currentTimeMillis() - t0).append(" ms)\n");
+                    } finally {
+                        try { if (in != null) in.close(); } catch (Throwable e) {}
+                        try { if (c != null) c.close(); } catch (Throwable e) {}
+                    }
+                    try { Thread.sleep(300); } catch (InterruptedException e) {}
+                }
+                log("--- helper test:\n" + all);
+                saveLog();
+                message("Pomocník", all.toString());
             }
         }.start();
     }

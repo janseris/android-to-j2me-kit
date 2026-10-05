@@ -12,7 +12,7 @@ const net = require("net");
 
 const port = Number(process.argv[2] || 8000);
 const dir = __dirname;
-const types = { ".jad": "text/vnd.sun.j2me.app-descriptor", ".jar": "application/java-archive",
+const types = { ".jad": "text/vnd.sun.j2me.app-descriptor", ".jar": "application/java-archive", ".sis": "application/vnd.symbian.install",
                 ".cer": "application/x-x509-ca-cert", ".der": "application/x-x509-ca-cert" };
 
 http.createServer((req, res) => {
@@ -78,7 +78,7 @@ http.createServer((req, res) => {
         return;
     }
     if (url === "/") {
-        const files = fs.readdirSync(dir).filter(f => /\.(jad|jar|cer|dll|txt)$/.test(f));
+        const files = fs.readdirSync(dir).filter(f => /\.(jad|jar|sis|cer|dll|txt)$/.test(f));
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end("<html><body><h3>OTA</h3><a href=/upload>Upload a file to the PC</a><br><br>" + files.map(f => `<a href="/${f}">${f}</a><br>`).join("") + "</body></html>");
         return;
