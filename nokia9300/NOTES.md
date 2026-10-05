@@ -162,8 +162,12 @@ Learned the hard way (pubtran-j2me `LESSONS_NOKIA_9300.md`):
 A GPS (or the Android app) without a fix may send nothing for minutes, so `available()` == 0 for a
 long time is normal. Don't treat it as a broken `available()` and fall back to blocking single-byte
 `read()`: Mapy 3.0 did, and crashed with KERN-EXEC 3 in `jes-...-java-comms` shortly after (the
-same crash as single-byte reads in probe 1.8/1.9). Keep polling `available()`; don't read Bluetooth
-while an HTTP request runs (Mapy 3.0+).
+same crash as single-byte reads in probe 1.8/1.9). Keep polling `available()`.
+
+**Never let data pile up unread.** Probe 2.6's test (20 s without reading a 1 Hz GGA+RMC stream,
+~3 KB) crashed the comms thread with E32USER-CBase 40. Mapy 3.0-4.0 paused Bluetooth reads while
+HTTP requests ran (Overpass: 10 s+) and crashed the same way. Read continuously, in a
+high-priority thread, exactly `available()` bytes per read, never a read of length 0.
 
 ## Screens are changed on the UI thread only
 
