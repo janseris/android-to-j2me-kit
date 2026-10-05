@@ -15,6 +15,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     static final Command SEARCH = new Command("Hledat zařízení", Command.SCREEN, 1);
     static final Command CONNECT = new Command("Připojit na adresu", Command.SCREEN, 2);
     static final Command STOP = new Command("Odpojit", Command.STOP, 3);
+    static final Command PAUSE = new Command("Test: 20 s nečíst", Command.SCREEN, 2);
     static final Command KNOWN = new Command("Spárovaná zařízení (bez hledání)", Command.SCREEN, 1);
     static final UUID SPP = new UUID(0x1101);
 
@@ -65,12 +66,20 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     /** Full-screen live view of the GPS stream; Back returns to the form. */
     class Live extends Canvas implements CommandListener {
         Live() {
+            addCommand(PAUSE);
             addCommand(STOP);
             addCommand(Probe.BACK);
             setCommandListener(this);
         }
 
         public void commandAction(Command c, Displayable d) {
+            if (c == PAUSE) {
+                // Mapy's crash suspect: data piling up in the Bluetooth buffer while nothing reads it
+                pauseUntil = System.currentTimeMillis() + 20000;
+                p.log("bt pause test: not reading for 20 s");
+                p.saveLog();
+                return;
+            }
             if (c == STOP) BtGpsScreen.this.stop();
             status.setText(vStatus);              // on the UI thread
             pos.setText(vPos);
@@ -270,16 +279,32 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     // with E32USER-CBase 40, single-byte read() with KERN-EXEC 3 in jes-...-java-comms). If available()
     // never reports data, fall back to single bytes.
     InputStream src;
-    final byte[] rb = new byte[256];
+    byte[] rb = new byte[2048];
     int rpos, rlen, zeroAvail;
     boolean availBroken;
+
+    volatile long pauseUntil;
+    int maxAvail;
 
     int next() throws IOException {
         while (running) {
             if (rpos < rlen) return rb[rpos++] & 0xff;
+            if (System.currentTimeMillis() < pauseUntil) {
+                vStatus = "TEST: nečtu, data se hromadí (" + (pauseUntil - System.currentTimeMillis()) / 1000 + " s)";
+                try { Thread.sleep(200); } catch (InterruptedException e) {}
+                continue;
+            }
             int av = src.available();
+            if (av > maxAvail) {
+                maxAvail = av;
+                p.log("bt backlog " + av + " B");
+                p.saveLog();
+            }
             if (av > 0) {
-                int n = src.read(rb, 0, Math.min(av, rb.length));
+                // read EXACTLY what available() says: a read of a different length (more: probe 1.7,
+                // less: after a backlog bigger than the buffer) crashed with E32USER-CBase 40
+                if (av > rb.length) rb = new byte[av + 512];
+                int n = src.read(rb, 0, av);
                 if (n < 0) return -1;
                 rpos = 0;
                 rlen = n;
