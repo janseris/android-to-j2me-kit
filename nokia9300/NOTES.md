@@ -36,6 +36,10 @@ Other measured values (JavaSpecs / JBenchmark):
   `SymbianOS error -5120` (DNS) or stalls: retrying on a new connection fixed it.
 - Timer resolution ~62 ms. JBenchmark 1515; JBenchmark 3D crashes (no JSR-184).
 - Bluetooth 1.1 with the Serial Port Profile (user guide, "Bluetooth connectivity").
+- **Read Bluetooth streams one byte at a time.** `InputStream.read(byte[])` on a `btspp://` stream crashed
+  the Java comms thread (`E32USER-CBase 40`) right after the first GPS data (probe 1.7); `read()` works.
+- `DiscoveryAgent.retrieveDevices(PREKNOWN)` returned no devices although the phones were paired;
+  connecting by address works.
 - **While the 9300 has a Bluetooth connection to the PC (PC Suite), it can't search for devices**
   (the search ends at once with nothing found) **and other devices can't find it.** Disconnect the PC
   first (observed 2026-10-04). So a Bluetooth GPS and a PC Suite Bluetooth connection don't mix:

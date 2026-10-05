@@ -238,12 +238,13 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
             long firstRecv = 0, lastFixRecv = 0, maxGap = 0;
             double firstGps = -1, lastGpsSec = -1;
             long drift = 0, maxDrift = 0, minDrift = Long.MAX_VALUE;
-            byte[] buf = new byte[512];
-            int n;
-            while (running && (n = in.read(buf)) > 0) {      // read in blocks: one byte at a time was slow
-                bytes += n;
-                for (int k = 0; k < n; k++) {
-                    int ch = buf[k] & 0xff;
+            int ch0;
+            // one byte at a time: on the 9300, read(byte[]) on a Bluetooth stream crashed the Java
+            // comms thread (E32USER-CBase 40, probe 1.7); single-byte read() works
+            while (running && (ch0 = in.read()) >= 0) {
+                bytes++;
+                for (int k = 0; k < 1; k++) {
+                    int ch = ch0;
                     if (ch == '\n' || ch == '\r') {
                         if (line.length() == 0) continue;
                         String s = line.toString();
