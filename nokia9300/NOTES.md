@@ -172,3 +172,21 @@ in **Main** or in the thread that did it: probe 1.9 (GPS status from the Bluetoo
 (the detail photo inserted after the download, when the user had already gone back to the map).
 Do it in `Display.callSerially(Runnable)` and check that the screen is still the current one. A
 Canvas only needs `repaint()`, which is safe from any thread.
+
+## The phone adds a second User-Agent
+
+Raw bytes of a MIDlet's GET on the 9300 (`ota_server.js` raw echo on port 8001, Probe 2.5):
+
+```
+GET /raw3 HTTP/1.1
+User-Agent: Mapy9300/3.6 (J2ME map app; Nokia 9300; ...)
+Host: 192.168.137.1
+Connection: close
+User-Agent: UNTRUSTED/1.0
+```
+
+The phone appends `User-Agent: UNTRUSTED/1.0` (MIDP's mark for unsigned MIDlets) as a **separate
+header** after the one the app sets. Most servers accept it; Microsoft IIS (ČÚZK's
+ags.cuzk.gov.cz) answers `400 Bad Request - Invalid Header`. For such a host, don't set a
+User-Agent at all (Mapy 3.7 learns it from the 400). `Host` has no port, the request is HTTP/1.1
+with `Connection: close`, no `Accept`.
