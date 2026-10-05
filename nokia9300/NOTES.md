@@ -141,9 +141,11 @@ Learned the hard way (pubtran-j2me `LESSONS_NOKIA_9300.md`):
 
 ## Forms and menus (found with Mapy 9300)
 
-- **POPUP ChoiceGroup**: Up/Down change the selected value instead of moving to the next field, so
-  the rest of the form can't be reached. Use `Choice.EXCLUSIVE` (radio list) - Up/Down move through
-  the items and on to the next field, Enter selects.
+- **ChoiceGroups in a Form take the Up/Down keys**: a POPUP changes its value with Up/Down, an
+  EXCLUSIVE (radio) group moves inside itself; either way the other fields are hard to reach.
+  Settings work better as a `List` of "name: value" rows: Up/Down move between rows, Enter opens a
+  `List` of the values (or a `TextBox` for text), nothing changes until "Uložit" (Mapy 9300's
+  `SettingsScreen`).
 - **Akce menu (Menu key) over a Canvas**: the arrow keys used in the menu are also delivered to the
   Canvas (`keyPressed`), `hideNotify()` is not called and `isShown()` stays true, so the Canvas can't
   tell. A Canvas that uses the arrows (map cursor) should have **no Commands** and draw its own menu,
