@@ -266,6 +266,42 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         conn = null;
     }
 
+    // Reading: only as many bytes as available() says are waiting (read(byte[]) of a fixed 512 crashed
+    // with E32USER-CBase 40, single-byte read() with KERN-EXEC 3 in jes-...-java-comms). If available()
+    // never reports data, fall back to single bytes.
+    InputStream src;
+    final byte[] rb = new byte[256];
+    int rpos, rlen, zeroAvail;
+    boolean availBroken;
+
+    int next() throws IOException {
+        while (running) {
+            if (rpos < rlen) return rb[rpos++] & 0xff;
+            if (availBroken) return src.read();
+            int av = src.available();
+            if (av > 0) {
+                int n = src.read(rb, 0, Math.min(av, rb.length));
+                if (n < 0) return -1;
+                rpos = 0;
+                rlen = n;
+                zeroAvail = 0;
+                continue;
+            }
+            if (++zeroAvail > 60) {             // 3 s without available() data: try a blocking read
+                int c = src.read();
+                if (c >= 0) {
+                    availBroken = true;
+                    p.log("bt: available() always 0, reading single bytes");
+                    p.saveLog();
+                }
+                zeroAvail = 0;
+                return c;
+            }
+            try { Thread.sleep(50); } catch (InterruptedException e) {}
+        }
+        return -1;
+    }
+
     int reconnects;
     String lastError = "";
 
@@ -325,8 +361,12 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
             // one byte at a time: on the 9300, read(byte[]) on a Bluetooth stream crashed the Java
             // comms thread (E32USER-CBase 40, probe 1.7); single-byte read() works
             int eofs = 0;
+            src = in;
+            rpos = rlen = 0;
+            zeroAvail = 0;
+            availBroken = false;
             while (running) {
-                ch0 = in.read();
+                ch0 = next();
                 if (ch0 < 0) {
                     // some Bluetooth stacks return -1 while no data is waiting; only 5 s of it means the end
                     if (++eofs > 50) break;
@@ -343,7 +383,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
                         String s = line.toString();
                         line.setLength(0);
                         sentences++;
-                        if (sentences <= 15) p.log("nmea " + s);
+                        if (sentences <= 15) { p.log("nmea " + s); p.saveLog(); }      // saved at once: it crashed here
                         long now = System.currentTimeMillis();
                         if (Nmea.parse(s)) {
                             fixes++;
