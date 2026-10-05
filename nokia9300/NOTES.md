@@ -138,3 +138,15 @@ Learned the hard way (pubtran-j2me `LESSONS_NOKIA_9300.md`):
 5. **Few requests:** no keep-alive between `HttpConnection`s; each costs a handshake.
 6. **Keep a request log in RMS** with phase timings and a "send to PC" command; it survives freezes.
 7. **Logging is slow** (~15 ms per line on the phone): it changes timing and can hide bugs.
+
+## Forms and menus (found with Mapy 9300)
+
+- **POPUP ChoiceGroup**: Up/Down change the selected value instead of moving to the next field, so
+  the rest of the form can't be reached. Use `Choice.EXCLUSIVE` (radio list) - Up/Down move through
+  the items and on to the next field, Enter selects.
+- **Akce menu (Menu key) over a Canvas**: the arrow keys used in the menu are also delivered to the
+  Canvas (`keyPressed`), `hideNotify()` is not called and `isShown()` stays true, so the Canvas can't
+  tell. A Canvas that uses the arrows (map cursor) should have **no Commands** and draw its own menu,
+  opened by a key it receives (Tab; unknown key codes are logged).
+- The Enter that picks an Akce menu item can reach the Canvas as well: act on Enter only on release,
+  and not when a command arrived meanwhile.
