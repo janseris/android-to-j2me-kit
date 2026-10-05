@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/2.6 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
+    String userAgent = "Probe9300/2.7 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -56,6 +56,7 @@ public class Probe extends MIDlet implements CommandListener {
         menu.append("Test hlaviček (co telefon posílá)", null);
         menu.append("Test spojení (cena HTTPS, loopback)", null);
         menu.append("Test hlaviček: surové bajty (port +1)", null);
+        menu.append("VELKÝ TEST (síť http/https, obrázky, úložiště, socket)", null);
         menu.append("Log", null);
         menu.append("Odeslat log na PC", null);
         menu.addCommand(EXIT);
@@ -85,8 +86,9 @@ public class Probe extends MIDlet implements CommandListener {
                 case 4: headersTest(); break;
                 case 5: show(new ConnTest()); break;
                 case 6: rawHeadersTest(); break;
-                case 7: showLog(); break;
-                case 8: sendLog(); break;
+                case 7: show(new BigTest()); break;
+                case 8: showLog(); break;
+                case 9: sendLog(); break;
             }
         }
     }
@@ -199,7 +201,7 @@ public class Probe extends MIDlet implements CommandListener {
                 int colon = pc.indexOf(':');
                 String host = colon < 0 ? pc : pc.substring(0, colon);
                 int port = colon < 0 ? 80 : Integer.parseInt(pc.substring(colon + 1));
-                String[] uas = { "Probe9300/2.6", userAgent,
+                String[] uas = { "Probe9300/2.7", userAgent,
                     "Mapy9300/3.6 (J2ME map app; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)" };
                 StringBuffer all = new StringBuffer();
                 for (int i = 0; i < uas.length; i++) {
