@@ -78,6 +78,17 @@ class Nmea {
         return out;
     }
 
+    /** UTC seconds of the day from the last RMC time (hhmmss.ss), or -1. */
+    static double secondsOfDay() {
+        try {
+            if (time.length() < 6) return -1;
+            return Integer.parseInt(time.substring(0, 2)) * 3600 + Integer.parseInt(time.substring(2, 4)) * 60
+                + Double.parseDouble(time.substring(4));
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
     static String describe() {
         if (lat == 0 && lon == 0) return "bez polohy (fix " + fixQuality + ", satelity " + sats + ")";
         return fmt(lat, 6) + ", " + fmt(lon, 6) + "  " + fmt(speedKmh, 1) + " km/h  kurz " + fmt(course, 0)

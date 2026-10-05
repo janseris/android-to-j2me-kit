@@ -232,28 +232,59 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
             p.log("bt connected in " + (tc - t0) + " ms");
             setStatus("Připojeno (" + (tc - t0) + " ms)");
             StringBuffer line = new StringBuffer();
-            long lastUi = 0;
-            int ch;
-            while (running && (ch = in.read()) >= 0) {
-                bytes++;
-                if (ch == '\n' || ch == '\r') {
-                    if (line.length() > 0) {
+            long lastUi = 0, lastLog = 0;
+            // real-time check: GPS time (from RMC) against the phone's receive time. If the
+            // difference grows, the data arrives late (buffered somewhere) and we fall behind.
+            long firstRecv = 0, lastFixRecv = 0, maxGap = 0;
+            double firstGps = -1, lastGpsSec = -1;
+            long drift = 0, maxDrift = 0, minDrift = Long.MAX_VALUE;
+            byte[] buf = new byte[512];
+            int n;
+            while (running && (n = in.read(buf)) > 0) {      // read in blocks: one byte at a time was slow
+                bytes += n;
+                for (int k = 0; k < n; k++) {
+                    int ch = buf[k] & 0xff;
+                    if (ch == '\n' || ch == '\r') {
+                        if (line.length() == 0) continue;
                         String s = line.toString();
                         line.setLength(0);
                         sentences++;
                         if (sentences <= 15) p.log("nmea " + s);
-                        if (Nmea.parse(s)) fixes++;
                         long now = System.currentTimeMillis();
+                        if (Nmea.parse(s)) {
+                            fixes++;
+                            double gs = Nmea.secondsOfDay();
+                            if (gs >= 0 && gs != lastGpsSec) {           // a new GPS second
+                                if (firstGps < 0) { firstGps = gs; firstRecv = now; }
+                                double dg = gs - firstGps;
+                                if (dg < -43200) dg += 86400;               // past midnight
+                                drift = (now - firstRecv) - (long) (dg * 1000);
+                                if (drift > maxDrift) maxDrift = drift;
+                                if (drift < minDrift) minDrift = drift;
+                                if (lastFixRecv > 0 && now - lastFixRecv > maxGap) maxGap = now - lastFixRecv;
+                                lastFixRecv = now;
+                                lastGpsSec = gs;
+                            }
+                        }
                         if (now - lastUi > 1000) {
                             lastUi = now;
                             raw.setText(s);
                             pos.setText(Nmea.describe());
                             long secs = Math.max(1, (now - tc) / 1000);
-                            stats.setText(sentences + " vět, " + bytes + " B, " + (bytes / secs) + " B/s, poloh " + fixes);
+                            stats.setText(sentences + " vět, " + bytes + " B, " + (bytes / secs) + " B/s, poloh " + fixes
+                                + "\nzpoždění oproti začátku: " + drift + " ms (rozsah " + (minDrift == Long.MAX_VALUE ? 0 : minDrift) + ".." + maxDrift
+                                + "), největší mezera mezi polohami " + maxGap + " ms"
+                                + (lastFixRecv > 0 ? ", poslední poloha před " + (now - lastFixRecv) + " ms" : ""));
                         }
+                        if (now - lastLog > 5000 && lastGpsSec >= 0) {
+                            lastLog = now;
+                            p.log("fix gps " + Nmea.time + " drift " + drift + " ms (min " + minDrift + " max " + maxDrift + "), gap max " + maxGap
+                                + " ms, " + Nmea.fmt(Nmea.lat, 6) + "," + Nmea.fmt(Nmea.lon, 6) + " " + Nmea.fmt(Nmea.speedKmh, 1) + " km/h, sats "
+                                + Nmea.sats + ", " + sentences + " sentences, " + (bytes * 1000 / Math.max(1, now - tc)) + " B/s");
+                        }
+                    } else if (line.length() < 200) {
+                        line.append((char) ch);
                     }
-                } else if (line.length() < 200) {
-                    line.append((char) ch);
                 }
             }
             p.log("bt stream ended: " + sentences + " sentences, " + bytes + " B, fixes " + fixes + ", last: " + Nmea.describe());
