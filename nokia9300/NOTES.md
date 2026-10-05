@@ -156,3 +156,11 @@ Learned the hard way (pubtran-j2me `LESSONS_NOKIA_9300.md`):
   its own actions; it draws the button labels itself in a bar on the right. Works on the phone.
 - The Enter that picks an Akce menu item can reach the Canvas as well: act on Enter only on release,
   and not when a command arrived meanwhile.
+
+## Bluetooth GPS: no blocking fallback
+
+A GPS (or the Android app) without a fix may send nothing for minutes, so `available()` == 0 for a
+long time is normal. Don't treat it as a broken `available()` and fall back to blocking single-byte
+`read()`: Mapy 3.0 did, and crashed with KERN-EXEC 3 in `jes-...-java-comms` shortly after (the
+same crash as single-byte reads in probe 1.8/1.9). Keep polling `available()`; don't read Bluetooth
+while an HTTP request runs (Mapy 3.0+).

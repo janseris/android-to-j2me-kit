@@ -277,7 +277,6 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     int next() throws IOException {
         while (running) {
             if (rpos < rlen) return rb[rpos++] & 0xff;
-            if (availBroken) return src.read();
             int av = src.available();
             if (av > 0) {
                 int n = src.read(rb, 0, Math.min(av, rb.length));
@@ -287,16 +286,9 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
                 zeroAvail = 0;
                 continue;
             }
-            if (++zeroAvail > 60) {             // 3 s without available() data: try a blocking read
-                int c = src.read();
-                if (c >= 0) {
-                    availBroken = true;
-                    p.log("bt: available() always 0, reading single bytes");
-                    p.saveLog();
-                }
-                zeroAvail = 0;
-                return c;
-            }
+            // no blocking single-byte fallback: a GPS without a fix may send nothing for minutes,
+            // and single-byte reads crashed the comms thread (KERN-EXEC 3, probe 1.8/1.9, Mapy 3.0)
+            ++zeroAvail;
             try { Thread.sleep(50); } catch (InterruptedException e) {}
         }
         return -1;
