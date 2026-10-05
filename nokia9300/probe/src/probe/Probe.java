@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/2.1 (+https://github.com/janseris/android-to-j2me-kit)";
+    String userAgent = "Probe9300/2.2 (+https://github.com/janseris/android-to-j2me-kit)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -54,6 +54,7 @@ public class Probe extends MIDlet implements CommandListener {
         menu.append("Mapové dlaždice", null);
         menu.append("Nastavení (PC, URL, klíč, User-Agent)", null);
         menu.append("Test hlaviček (co telefon posílá)", null);
+        menu.append("Test spojení (cena HTTPS, loopback)", null);
         menu.append("Log", null);
         menu.append("Odeslat log na PC", null);
         menu.addCommand(EXIT);
@@ -81,8 +82,9 @@ public class Probe extends MIDlet implements CommandListener {
                 case 2: show(new TileScreen()); break;
                 case 3: settings(); break;
                 case 4: headersTest(); break;
-                case 5: showLog(); break;
-                case 6: sendLog(); break;
+                case 5: show(new ConnTest()); break;
+                case 6: showLog(); break;
+                case 7: sendLog(); break;
             }
         }
     }
@@ -92,6 +94,8 @@ public class Probe extends MIDlet implements CommandListener {
         log.append(s).append('\n');
         if (log.length() > 30000) log.delete(0, log.length() - 24000);
     }
+
+    synchronized String logText() { return log.toString(); }
 
     String previousLog = "";
 
