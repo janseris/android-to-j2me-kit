@@ -20,7 +20,7 @@ echo MIDlet-Jar-Size: %SIZE%
 echo MIDlet-Jar-URL: probe9300.jar
 echo MIDlet-Name: Probe 9300
 echo MIDlet-Vendor: android-to-j2me-kit
-echo MIDlet-Version: 1.9
+echo MIDlet-Version: 2.0
 echo MicroEdition-Configuration: CLDC-1.1
 echo MicroEdition-Profile: MIDP-2.0
 ) > bin\probe9300.jad

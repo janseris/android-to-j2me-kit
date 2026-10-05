@@ -51,7 +51,65 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         }
     }
 
-    void setStatus(String s) { status.setText(s); }
+    // Live values, drawn by the Live canvas. The Form's items are NOT updated from the reader
+    // thread any more: probe 1.9 crashed in the UI thread (KERN-EXEC 3 in "main") after a few
+    // positions while the form was being updated from the Bluetooth thread every second.
+    volatile String vStatus = "", vPos = "-", vStats = "-", vRaw = "-";
+    final Live live = new Live();
+
+    void setStatus(String s) {
+        vStatus = s;
+        live.repaint();
+    }
+
+    /** Full-screen live view of the GPS stream; Back returns to the form. */
+    class Live extends Canvas implements CommandListener {
+        Live() {
+            addCommand(STOP);
+            addCommand(Probe.BACK);
+            setCommandListener(this);
+        }
+
+        public void commandAction(Command c, Displayable d) {
+            if (c == STOP) BtGpsScreen.this.stop();
+            status.setText(vStatus);              // on the UI thread
+            pos.setText(vPos);
+            stats.setText(vStats);
+            raw.setText(vRaw);
+            p.show(BtGpsScreen.this);
+        }
+
+        protected void paint(Graphics g) {
+            int w = getWidth(), h = getHeight();
+            g.setColor(0x1E1F22);
+            g.fillRect(0, 0, w, h);
+            Font f = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
+            g.setFont(f);
+            int y = 2;
+            y = lines(g, f, 0xFCEE74, "Stav: " + vStatus, y, w);
+            y = lines(g, f, 0xFFFFFF, "Poloha: " + vPos, y, w);
+            y = lines(g, f, 0xB5BAC1, vStats, y, w);
+            lines(g, f, 0x80848E, vRaw, y, w);
+        }
+
+        int lines(Graphics g, Font f, int color, String s, int y, int w) {
+            g.setColor(color);
+            int start = 0;
+            while (start < s.length()) {
+                int nl = s.indexOf('\n', start);
+                String part = nl < 0 ? s.substring(start) : s.substring(start, nl);
+                start = nl < 0 ? s.length() : nl + 1;
+                while (part.length() > 0) {
+                    int n = part.length();
+                    while (n > 1 && f.substringWidth(part, 0, n) > w - 6) n--;
+                    g.drawString(part.substring(0, n), 3, y, Graphics.TOP | Graphics.LEFT);
+                    y += f.getHeight();
+                    part = part.substring(n);
+                }
+            }
+            return y + 2;
+        }
+    }
 
     public void commandAction(Command c, Displayable d) {
         if (d == deviceList) {
@@ -194,6 +252,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     }
 
     void connectAny(String[] list) {
+        p.show(live);
         stop();
         running = true;
         urls = list;
@@ -303,13 +362,14 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
                         }
                         if (now - lastUi > 1000) {
                             lastUi = now;
-                            raw.setText(s);
-                            pos.setText(Nmea.describe());
+                            vRaw = s;
+                            vPos = Nmea.describe();
                             long secs = Math.max(1, (now - tc) / 1000);
-                            stats.setText(sentences + " vět, " + bytes + " B, " + (bytes / secs) + " B/s, poloh " + fixes
+                            vStats = (sentences + " vět, " + bytes + " B, " + (bytes / secs) + " B/s, poloh " + fixes
                                 + "\nzpoždění oproti začátku: " + drift + " ms (rozsah " + (minDrift == Long.MAX_VALUE ? 0 : minDrift) + ".." + maxDrift
                                 + "), největší mezera mezi polohami " + maxGap + " ms"
                                 + (lastFixRecv > 0 ? ", poslední poloha před " + (now - lastFixRecv) + " ms" : ""));
+                            live.repaint();
                         }
                         if (now - lastLog > 5000 && lastGpsSec >= 0) {
                             lastLog = now;

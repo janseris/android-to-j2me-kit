@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/1.9 (+https://github.com/janseris/android-to-j2me-kit)";
+    String userAgent = "Probe9300/2.0 (+https://github.com/janseris/android-to-j2me-kit)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -35,6 +35,19 @@ public class Probe extends MIDlet implements CommandListener {
         if (display != null) return;
         display = Display.getDisplay(this);
         load();
+        loadPreviousLog();
+        // the log survives crashes: saved to RMS every 5 s, sent together with the previous run's log
+        new Thread() {
+            public void run() {
+                int saved = 0;
+                while (true) {
+                    try { Thread.sleep(5000); } catch (InterruptedException e) {}
+                    int len;
+                    synchronized (Probe.this) { len = log.length(); }
+                    if (len != saved) { saveLog(); saved = len; }
+                }
+            }
+        }.start();
         menu = new List("Nokia 9300 probe", List.IMPLICIT);
         menu.append("Paměť (heap, obrázky)", null);
         menu.append("Bluetooth GPS", null);
@@ -80,6 +93,29 @@ public class Probe extends MIDlet implements CommandListener {
         if (log.length() > 30000) log.delete(0, log.length() - 24000);
     }
 
+    String previousLog = "";
+
+    void loadPreviousLog() {
+        try {
+            RecordStore rs = RecordStore.openRecordStore("probelog", true);
+            if (rs.getNumRecords() > 0) {
+                byte[] b = rs.getRecord(1);
+                previousLog = new String(b, "UTF-8");
+            }
+            rs.closeRecordStore();
+        } catch (Throwable e) {}
+    }
+
+    synchronized void saveLog() {
+        try {
+            byte[] b = log.toString().getBytes("UTF-8");
+            RecordStore rs = RecordStore.openRecordStore("probelog", true);
+            if (rs.getNumRecords() == 0) rs.addRecord(b, 0, b.length);
+            else rs.setRecord(1, b, 0, b.length);
+            rs.closeRecordStore();
+        } catch (Throwable e) {}
+    }
+
     void memLine(String label) {
         Runtime r = Runtime.getRuntime();
         log("mem " + label + ": total " + r.totalMemory() + " free " + r.freeMemory());
@@ -109,6 +145,8 @@ public class Probe extends MIDlet implements CommandListener {
             public void run() {
                 String s;
                 synchronized (Probe.this) { s = log.toString(); }
+                if (previousLog.length() > 0) s = "===== PŘEDCHOZÍ BĚH (uložený log, např. před pádem) =====\n" + previousLog
+                    + "\n===== TENTO BĚH =====\n" + s;
                 try {
                     String r = post("http://" + pc + "/results?name=probe", s);
                     message("Odesláno", r);
