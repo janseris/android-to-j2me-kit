@@ -164,3 +164,11 @@ long time is normal. Don't treat it as a broken `available()` and fall back to b
 `read()`: Mapy 3.0 did, and crashed with KERN-EXEC 3 in `jes-...-java-comms` shortly after (the
 same crash as single-byte reads in probe 1.8/1.9). Keep polling `available()`; don't read Bluetooth
 while an HTTP request runs (Mapy 3.0+).
+
+## Screens are changed on the UI thread only
+
+Changing a Form (insert/append/setText) from a background thread crashes the app with KERN-EXEC 3
+in **Main** or in the thread that did it: probe 1.9 (GPS status from the Bluetooth thread), Mapy 3.3
+(the detail photo inserted after the download, when the user had already gone back to the map).
+Do it in `Display.callSerially(Runnable)` and check that the screen is still the current one. A
+Canvas only needs `repaint()`, which is safe from any thread.
