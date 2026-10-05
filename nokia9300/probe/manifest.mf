@@ -1,6 +1,6 @@
 MIDlet-1: Probe 9300, , probe.Probe
 MIDlet-Name: Probe 9300
 MIDlet-Vendor: android-to-j2me-kit
-MIDlet-Version: 1.8
+MIDlet-Version: 1.9
 MicroEdition-Configuration: CLDC-1.1
 MicroEdition-Profile: MIDP-2.0

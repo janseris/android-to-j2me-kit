@@ -207,7 +207,31 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         conn = null;
     }
 
+    int reconnects;
+    String lastError = "";
+
+    /** Keeps the GPS connected: after the stream ends or fails, waits and connects again. */
     public void run() {
+        String[] first = urls;
+        reconnects = 0;
+        while (running) {
+            lastError = "";
+            session();
+            if (!running) break;
+            reconnects++;
+            // "already exists" (-11): the old link is still being torn down; give it longer
+            int wait = lastError.indexOf("-11") >= 0 ? 10 : 3;
+            setStatus("Spojení skončilo (" + lastError + "), znovu za " + wait + " s, pokus " + reconnects);
+            p.log("bt reconnect " + reconnects + " in " + wait + " s (" + lastError + ")");
+            for (int k = 0; k < wait * 10 && running; k++) {
+                try { Thread.sleep(100); } catch (InterruptedException e) {}
+            }
+            urls = first;
+        }
+    }
+
+    /** One connection: connect, read until the stream ends. */
+    void session() {
         String url = null;
         long t0 = System.currentTimeMillis();
         int sentences = 0, bytes = 0, fixes = 0;
@@ -241,7 +265,17 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
             int ch0;
             // one byte at a time: on the 9300, read(byte[]) on a Bluetooth stream crashed the Java
             // comms thread (E32USER-CBase 40, probe 1.7); single-byte read() works
-            while (running && (ch0 = in.read()) >= 0) {
+            int eofs = 0;
+            while (running) {
+                ch0 = in.read();
+                if (ch0 < 0) {
+                    // some Bluetooth stacks return -1 while no data is waiting; only 5 s of it means the end
+                    if (++eofs > 50) break;
+                    if (eofs == 1) p.log("bt read -1 after " + sentences + " sentences, waiting");
+                    try { Thread.sleep(100); } catch (InterruptedException ie) {}
+                    continue;
+                }
+                if (eofs > 0) { p.log("bt data again after " + eofs + " x -1"); eofs = 0; }
                 bytes++;
                 for (int k = 0; k < 1; k++) {
                     int ch = ch0;
@@ -293,6 +327,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
         } catch (Throwable e) {
             p.log("bt error after " + (System.currentTimeMillis() - t0) + " ms: " + e + "; sentences " + sentences + ", last: " + Nmea.describe());
             setStatus("Chyba: " + e);
+            lastError = e.toString();
         } finally {
             try { if (conn != null) conn.close(); } catch (Throwable e) {}
             conn = null;
