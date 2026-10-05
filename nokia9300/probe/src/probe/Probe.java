@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/3.0 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
+    String userAgent = "Probe9300/3.1 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -28,6 +28,22 @@ public class Probe extends MIDlet implements CommandListener {
     static final Command BACK = new Command("Zpět", Command.BACK, 1);
     static final Command EXIT = new Command("Konec", Command.EXIT, 9);
     static final Command OK = new Command("Uložit", Command.SCREEN, 1);   // SCREEN: shown on a side button on the 9300, OK went to the menu
+
+    static final String T_HELPER = "Test Net Helper (http://127.0.0.1:8123)",
+        T_KEEPALIVE = "Keep-alive test (socket:// a ssl://, jedno spojení)",
+        T_BIG = "VELKÝ TEST (síť http/https, obrázky, úložiště, socket)",
+        T_RAW = "Test hlaviček: surové bajty (port +1)",
+        T_CONN = "Test spojení (cena HTTPS, loopback)",
+        T_HEADERS = "Test hlaviček (co telefon posílá)",
+        T_BT = "Bluetooth GPS",
+        T_TILES = "Mapové dlaždice",
+        T_MEMORY = "Paměť (heap, obrázky)",
+        T_SETTINGS = "Nastavení (PC, URL, klíč, User-Agent)",
+        T_LOG = "Log",
+        T_SEND = "Odeslat log na PC";
+    /** Menu: the newest test first (add new ones at the top). */
+    static final String[] ITEMS = { T_HELPER, T_KEEPALIVE, T_BIG, T_RAW, T_CONN, T_HEADERS, T_BT, T_TILES,
+        T_MEMORY, T_SETTINGS, T_LOG, T_SEND };
 
     public Probe() { app = this; }
 
@@ -49,18 +65,8 @@ public class Probe extends MIDlet implements CommandListener {
             }
         }.start();
         menu = new List("Nokia 9300 probe", List.IMPLICIT);
-        menu.append("Paměť (heap, obrázky)", null);
-        menu.append("Bluetooth GPS", null);
-        menu.append("Mapové dlaždice", null);
-        menu.append("Nastavení (PC, URL, klíč, User-Agent)", null);
-        menu.append("Test hlaviček (co telefon posílá)", null);
-        menu.append("Test spojení (cena HTTPS, loopback)", null);
-        menu.append("Test hlaviček: surové bajty (port +1)", null);
-        menu.append("VELKÝ TEST (síť http/https, obrázky, úložiště, socket)", null);
-        menu.append("Keep-alive test (socket:// a ssl://, jedno spojení)", null);
-        menu.append("Test Net Helper (http://127.0.0.1:8123)", null);
-        menu.append("Log", null);
-        menu.append("Odeslat log na PC", null);
+        // newest tests on top, then the older ones; the log at the bottom
+        for (int i = 0; i < ITEMS.length; i++) menu.append(ITEMS[i], null);
         menu.addCommand(EXIT);
         menu.setCommandListener(this);
         log("probe start: " + System.getProperty("microedition.platform")
@@ -80,20 +86,20 @@ public class Probe extends MIDlet implements CommandListener {
     public void commandAction(Command c, Displayable d) {
         if (c == EXIT) { notifyDestroyed(); return; }
         if (d == menu) {
-            switch (menu.getSelectedIndex()) {
-                case 0: new MemoryTest().start(); break;
-                case 1: show(new BtGpsScreen()); break;
-                case 2: show(new TileScreen()); break;
-                case 3: settings(); break;
-                case 4: headersTest(); break;
-                case 5: show(new ConnTest()); break;
-                case 6: rawHeadersTest(); break;
-                case 7: show(new BigTest()); break;
-                case 8: show(new KeepAlive()); break;
-                case 9: helperTest(); break;
-                case 10: showLog(); break;
-                case 11: sendLog(); break;
-            }
+            int i = menu.getSelectedIndex();
+            String item = i >= 0 ? ITEMS[i] : "";
+            if (item == T_HELPER) helperTest();
+            else if (item == T_KEEPALIVE) show(new KeepAlive());
+            else if (item == T_BIG) show(new BigTest());
+            else if (item == T_RAW) rawHeadersTest();
+            else if (item == T_CONN) show(new ConnTest());
+            else if (item == T_HEADERS) headersTest();
+            else if (item == T_BT) show(new BtGpsScreen());
+            else if (item == T_TILES) show(new TileScreen());
+            else if (item == T_MEMORY) new MemoryTest().start();
+            else if (item == T_SETTINGS) settings();
+            else if (item == T_LOG) showLog();
+            else if (item == T_SEND) sendLog();
         }
     }
 
@@ -205,7 +211,7 @@ public class Probe extends MIDlet implements CommandListener {
                 int colon = pc.indexOf(':');
                 String host = colon < 0 ? pc : pc.substring(0, colon);
                 int port = colon < 0 ? 80 : Integer.parseInt(pc.substring(colon + 1));
-                String[] uas = { "Probe9300/3.0", userAgent,
+                String[] uas = { "Probe9300/3.1", userAgent,
                     "Mapy9300/3.6 (J2ME map app; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)" };
                 StringBuffer all = new StringBuffer();
                 for (int i = 0; i < uas.length; i++) {
@@ -258,6 +264,7 @@ public class Probe extends MIDlet implements CommandListener {
                 }
                 log("--- helper test:\n" + all);
                 saveLog();
+                try { post("http://" + pc + "/results?name=nethelper", "Net Helper test\n" + all); } catch (Throwable e) { all.append("(sending to PC failed: " + e + ")"); }
                 message("Net Helper", all.toString());
             }
         }.start();
