@@ -194,3 +194,22 @@ header** after the one the app sets. Most servers accept it; Microsoft IIS (ČÚ
 ags.cuzk.gov.cz) answers `400 Bad Request - Invalid Header`. For such a host, don't set a
 User-Agent at all (Mapy 3.7 learns it from the 400). `Host` has no port, the request is HTTP/1.1
 with `Connection: close`, no `Accept`.
+
+## Measured: request costs (Probe 2.7 big test, 2026-10-05, USB internet)
+
+| What | Time |
+|---|---|
+| Tile over plain HTTP (OpenTopoMap, ČÚZK), HttpConnection | ~400 ms connect+response, ~200-300 ms body |
+| Same tile over HTTPS | first ~1.1-1.9 s (full TLS handshake), then ~900 ms |
+| OSM tile (HTTPS only) | ~1.3 s |
+| Seznam photo 200 px (70 KB, HTTPS) | ~2.5 s + 0.7 s body |
+| 5 HTTP requests back to back without the 300 ms pause | 157-187 ms each (vs ~400 with it) |
+| PNG tile decode (256x256) | 330-500 ms |
+| JPEG tile decode | 200-235 ms (photo 117x200: 60-80 ms) |
+| RMS 30 KB write / read | 150-280 / 15-170 ms |
+
+- **An unsigned MIDlet CAN open `socket://`** (no prompt): own HTTP/1.1 with keep-alive is possible.
+- `http://127.0.0.1` is allowed too (-34 connection refused: nothing listening).
+- `routing.openstreetmap.de` over HTTPS: `CertificateException` (use HTTP).
+- Overpass mirrors: private.coffee (HTTP 404, HTTPS hangs) and maps.mail.ru (HTTP -> 301, HTTPS
+  hangs) don't work from the phone; overpass-api.de does (HTTP and HTTPS).
