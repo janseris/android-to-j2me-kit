@@ -34,9 +34,20 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
     final StringBuffer summary = new StringBuffer();
     String ua, key = "";
     boolean helper;
+    /**
+     * "Like Mapy": the same downloads while the phone does what Mapy does meanwhile: the Bluetooth
+     * GPS reading in the background (connect it in "Bluetooth GPS" first, then "Keep reading") and
+     * tiles being decoded on another thread. Shows whether those slow the downloads down.
+     */
+    final boolean likeMapy;
+    volatile byte[] lastBody;
+    volatile int decodes;
 
-    TileSpeed() {
-        setTitle("Map servers: speed");
+    TileSpeed() { this(false); }
+
+    TileSpeed(boolean likeMapy) {
+        this.likeMapy = likeMapy;
+        setTitle(likeMapy ? "Map servers: like Mapy" : "Map servers: speed");
         addCommand(STOP);
         setCommandListener(this);
         new Thread(this).start();
@@ -54,7 +65,24 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
 
     public void run() {
         ua = Probe.app.userAgent;
-        line("Map server speed test, " + System.getProperty("microedition.platform"));
+        line((likeMapy ? "Map server speed test LIKE MAPY (GPS + decoding), " : "Map server speed test, ") + System.getProperty("microedition.platform"));
+        if (likeMapy) {
+            line(BtGpsScreen.active != null ? "GPS reading in the background (" + BtGpsScreen.bgSentences + " sentences so far)"
+                : "GPS NOT reading: connect it in Bluetooth GPS and choose 'Keep reading, back to menu' first");
+            Thread dec = new Thread() {
+                public void run() {
+                    while (running) {
+                        byte[] b = lastBody;
+                        if (b != null) {
+                            try { Image.createImage(b, 0, b.length); decodes++; } catch (Throwable e) {}
+                        }
+                        try { Thread.sleep(100); } catch (InterruptedException e) {}
+                    }
+                }
+            };
+            dec.start();
+        }
+        int gps0 = BtGpsScreen.bgSentences;
         try {
             key = Probe.app.apiKey;
             if (key.length() == 0) {
@@ -69,11 +97,14 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
             int x0 = 35800, y0 = 22200;
             for (int s = 0; s < SERVERS.length && running; s++) {
                 if (SERVERS[s][1].indexOf("{key}") >= 0 && key.length() == 0) continue;
+                if (likeMapy && s != 0 && s != 1 && s != 4) continue;        // OSM, OpenTopoMap, Mapy.com standard
                 measure(SERVERS[s][0], SERVERS[s][1], SERVERS[s][2].equals("y"), x0 + 10 * s, y0);
             }
         } catch (Throwable e) {
             line("ERROR: " + e);
         }
+        if (likeMapy) line("Meanwhile: " + decodes + " tile decodes on another thread, " + (BtGpsScreen.bgSentences - gps0) + " GPS sentences read"
+            + (BtGpsScreen.active != null ? "" : " (GPS not reading)"));
         line("== Summary (ms per tile without the first one: direct / Net Helper)");
         String sm = summary.toString();
         int st = 0;
@@ -85,7 +116,7 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
         }
         Probe.app.saveLog();
         try {
-            line(Probe.post("http://" + Probe.app.pc + "/results?name=tilespeed", report.toString()));
+            line(Probe.post("http://" + Probe.app.pc + "/results?name=" + (likeMapy ? "tilespeed_likemapy" : "tilespeed"), report.toString()));
         } catch (Throwable e) {
             line("Sending failed: " + e);
         }
@@ -152,6 +183,7 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
                 if (e != null) info += ", ERROR " + e;
             }
             byte[] body = o.toByteArray();
+            if (image && code == 200) lastBody = body;
             if (code != 200 && body.length > 0) info += " " + new String(body, 0, Math.min(body.length, 120));
             return new String[] { "" + ms, "" + code, "" + body.length, info, image ? "" : new String(body) };
         } catch (Throwable e) {

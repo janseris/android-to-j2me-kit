@@ -18,6 +18,10 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     static final Command PAUSE = new Command("Test: 20 s nečíst", Command.SCREEN, 2);
     static final Command KNOWN = new Command("Spárovaná zařízení (bez hledání)", Command.SCREEN, 1);
     static final UUID SPP = new UUID(0x1101);
+    static final Command KEEP = new Command("Keep reading, back to menu", Command.SCREEN, 3);
+    /** The GPS reading in the background (for the "like Mapy" speed test), and its sentence count. */
+    static volatile BtGpsScreen active;
+    static volatile int bgSentences;
 
     final Probe p = Probe.app;
     final TextField address = new TextField("BT adresa Androidu (Nastavení > O telefonu > Stav)", "", 17, TextField.ANY);
@@ -67,6 +71,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     class Live extends Canvas implements CommandListener {
         Live() {
             addCommand(PAUSE);
+            addCommand(KEEP);
             addCommand(STOP);
             addCommand(Probe.BACK);
             setCommandListener(this);
@@ -80,6 +85,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
                 p.saveLog();
                 return;
             }
+            if (c == KEEP) { p.log("bt: reading continues in the background"); p.back(); return; }
             if (c == STOP) BtGpsScreen.this.stop();
             status.setText(vStatus);              // on the UI thread
             pos.setText(vPos);
@@ -326,6 +332,8 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
     public void run() {
         String[] first = urls;
         reconnects = 0;
+        active = this;
+        bgSentences = 0;
         while (running) {
             lastError = "";
             session();
@@ -340,6 +348,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
             }
             urls = first;
         }
+        if (active == this) active = null;
     }
 
     /** One connection: connect, read until the stream ends. */
@@ -400,6 +409,7 @@ class BtGpsScreen extends Form implements CommandListener, DiscoveryListener, Ru
                         String s = line.toString();
                         line.setLength(0);
                         sentences++;
+                        bgSentences++;
                         if (sentences <= 15) { p.log("nmea " + s); p.saveLog(); }      // saved at once: it crashed here
                         long now = System.currentTimeMillis();
                         if (Nmea.parse(s)) {
