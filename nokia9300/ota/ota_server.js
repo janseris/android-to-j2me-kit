@@ -86,6 +86,12 @@ http.createServer((req, res) => {
     const file = path.join(dir, path.basename(url));
     if (!fs.existsSync(file)) { res.writeHead(404); res.end("not found"); return; }
     const ext = path.extname(file).toLowerCase();
+    // *.key (e.g. mapy_api.key, the user's own API key; gitignored, never listed): only for the phone on
+    // the PC's shared USB connection (Windows ICS 192.168.137.x) or this PC, not for the rest of the LAN
+    if (ext === ".key" && !/^(::ffff:)?(192\.168\.137\.|127\.)/.test(req.socket.remoteAddress || "")) {
+        console.log("  refused: .key only for the phone on the USB link");
+        res.writeHead(403); res.end("forbidden"); return;
+    }
     let data = fs.readFileSync(file);
     if (ext === ".jad") {
         const host = req.headers.host || ("localhost:" + port);
