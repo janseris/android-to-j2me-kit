@@ -95,6 +95,7 @@ public class HelperFetch extends Canvas implements CommandListener, Runnable {
             byte[] buf = new byte[2048];
             int n;
             while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+            long ms = System.currentTimeMillis() - t0;          // before decoding (that's not network time)
             String h = viaHelper ? c.getHeaderField("X-Helper") : null;
             if (viaHelper && code == 200) {
                 try {
@@ -108,7 +109,7 @@ public class HelperFetch extends Canvas implements CommandListener, Runnable {
                 String e = c.getHeaderField("X-Helper-Error");
                 if (e != null) h = h + " ERROR " + e;
             }
-            return new String[] { "" + (System.currentTimeMillis() - t0), "" + code, "" + o.size(), h == null ? "" : h };
+            return new String[] { "" + ms, "" + code, "" + o.size(), h == null ? "" : h };
         } catch (Throwable e) {
             return new String[] { "" + (System.currentTimeMillis() - t0), "-1", "0", e.toString() };
         } finally {
