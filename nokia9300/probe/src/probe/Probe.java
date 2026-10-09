@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/3.8 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
+    String userAgent = "Probe9300/3.9 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -223,7 +223,7 @@ public class Probe extends MIDlet implements CommandListener {
                 int colon = pc.indexOf(':');
                 String host = colon < 0 ? pc : pc.substring(0, colon);
                 int port = colon < 0 ? 80 : Integer.parseInt(pc.substring(colon + 1));
-                String[] uas = { "Probe9300/3.8", userAgent,
+                String[] uas = { "Probe9300/3.9", userAgent,
                     "Mapy9300/3.6 (J2ME map app; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)" };
                 StringBuffer all = new StringBuffer();
                 for (int i = 0; i < uas.length; i++) {

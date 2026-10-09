@@ -20,7 +20,7 @@ import javax.microedition.rms.RecordStore;
  */
 public class FileTest extends Canvas implements CommandListener, Runnable {
     static final Command STOP = new Command("Back", Command.BACK, 1);
-    static final int N = 30, SIZE = 20 * 1024;
+    static final int N = 5, SIZE = 20 * 1024;
     /** The tile PP Probe decodes too (Brno, zoom 16). */
     static final String TILE = "https://tile.openstreetmap.org/16/35803/22210.png";
 
@@ -52,25 +52,20 @@ public class FileTest extends Canvas implements CommandListener, Runnable {
     public void run() {
         line("== File test, " + System.getProperty("microedition.platform") + ", FileConnection "
             + System.getProperty("microedition.io.file.FileConnection.version"));
-        line("If the phone asks to allow file access, answer Yes and note how often it asks.");
+        line("The record store first (no prompts), then files: if the phone asks to allow file access, answer Yes and note how often it asks.");
         data = new byte[SIZE];
         Random rnd = new Random(9300);
         for (int i = 0; i < SIZE; i++) data[i] = (byte) rnd.nextInt();
+        // the record store first: no prompts, the numbers are real
+        recordStore();
         try {
-            Vector roots = new Vector();
-            long t = System.currentTimeMillis();
-            for (Enumeration e = FileSystemRegistry.listRoots(); e.hasMoreElements();) roots.addElement(e.nextElement());
-            line("Drives (" + (System.currentTimeMillis() - t) + " ms): " + roots);
-            String[] props = { "fileconn.dir.photos", "fileconn.dir.private", "fileconn.dir.memorycard" };
-            for (int i = 0; i < props.length; i++) {
-                String v = System.getProperty(props[i]);
-                if (v != null) line(props[i] + " = " + v);
-            }
-            for (int i = 0; i < roots.size() && running; i++) drive((String) roots.elementAt(i));
+            String priv = System.getProperty("fileconn.dir.private");
+            if (priv != null && running) drive("Probe's own folder", priv + "ProbeFileTest/");
+            String card = System.getProperty("fileconn.dir.memorycard");
+            if (running) drive("Memory card", (card != null ? card : "file:///D:/") + "ProbeFileTest/");
         } catch (Throwable e) {
             line("FileConnection failed: " + e);
         }
-        if (running) recordStore();
         if (running) decode();
         line("== Summary");
         line(summary.toString().trim());
@@ -82,72 +77,81 @@ public class FileTest extends Canvas implements CommandListener, Runnable {
         line("Done. Back = menu.");
     }
 
-    /** Tile-sized files on one drive: make a folder, write, list, read, delete; all timed. */
-    void drive(String root) {
-        String base = "file:///" + root;
-        // C: has no room for user files at its top on Series 80: use C:/Data/ there
-        String dir = base + (root.toUpperCase().startsWith("C") ? "Data/" : "") + "ProbeFileTest/";
-        line("== " + root + " (" + dir + ")");
+    /**
+     * Tile-sized files in one folder. Each step is timed in two parts: opening the file (where the
+     * phone asks "Allow?", so that part includes your answer) and moving the data (no prompts):
+     * the data part is the real speed.
+     */
+    void drive(String label, String dir) {
+        line("== " + label + " (" + dir + ")");
         FileConnection fc = null;
         try {
             long t = System.currentTimeMillis();
-            fc = (FileConnection) Connector.open(base, Connector.READ);
-            long open = System.currentTimeMillis() - t;
-            String space = "";
-            try { space = ", " + fc.availableSize() / 1024 + " of " + fc.totalSize() / 1024 + " KB free"; } catch (Throwable e) {}
-            fc.close();
-            fc = null;
-            line("open drive: " + p(open) + space);
-
-            t = System.currentTimeMillis();
             fc = (FileConnection) Connector.open(dir, Connector.READ_WRITE);
             if (!fc.exists()) fc.mkdir();
+            String space = "";
+            try { space = ", " + fc.availableSize() / 1024 + " KB free"; } catch (Throwable e) {}
             fc.close();
             fc = null;
-            line("make folder: " + p(System.currentTimeMillis() - t));
+            line("folder: " + p(System.currentTimeMillis() - t) + space);
 
-            long[] w = new long[N];
-            long t0 = System.currentTimeMillis();
+            long[] wo = new long[N], wd = new long[N];
             for (int i = 0; i < N && running; i++) {
                 long a = System.currentTimeMillis();
                 fc = (FileConnection) Connector.open(dir + "t" + i + ".png", Connector.READ_WRITE);
                 if (!fc.exists()) fc.create();
                 OutputStream o = fc.openOutputStream();
+                long b = System.currentTimeMillis();
                 o.write(data);
                 o.close();
                 fc.close();
                 fc = null;
-                w[i] = System.currentTimeMillis() - a;
+                wd[i] = System.currentTimeMillis() - b;
+                wo[i] = b - a;
             }
-            long wAll = System.currentTimeMillis() - t0;
-            line("write " + N + " x 20 KB: " + wAll + " ms, per file " + times(w) + " ms");
+            line("write " + N + " x 20 KB: data " + times(wd) + " ms; opening (incl. prompts) " + times(wo) + " ms");
 
-            t = System.currentTimeMillis();
-            fc = (FileConnection) Connector.open(dir, Connector.READ);
-            int n = 0;
-            for (Enumeration e = fc.list(); e.hasMoreElements(); e.nextElement()) n++;
-            fc.close();
-            fc = null;
-            line("list folder: " + n + " files, " + p(System.currentTimeMillis() - t));
-
-            long[] r = new long[N];
+            long[] ro = new long[N], rd = new long[N];
             byte[] buf = new byte[SIZE];
             boolean same = true;
-            t0 = System.currentTimeMillis();
             for (int i = 0; i < N && running; i++) {
                 long a = System.currentTimeMillis();
                 fc = (FileConnection) Connector.open(dir + "t" + i + ".png", Connector.READ);
                 InputStream in = fc.openInputStream();
+                long b = System.currentTimeMillis();
                 int got = 0, k;
                 while (got < SIZE && (k = in.read(buf, got, SIZE - got)) > 0) got += k;
                 in.close();
                 fc.close();
                 fc = null;
-                r[i] = System.currentTimeMillis() - a;
+                rd[i] = System.currentTimeMillis() - b;
+                ro[i] = b - a;
                 if (got != SIZE || buf[i] != data[i]) same = false;
             }
-            long rAll = System.currentTimeMillis() - t0;
-            line("read " + N + " x 20 KB: " + rAll + " ms, per file " + times(r) + " ms" + (same ? "" : " (DATA DIFFERS!)"));
+            line("read " + N + " x 20 KB: data " + times(rd) + " ms; opening (incl. prompts) " + times(ro) + " ms" + (same ? "" : " (DATA DIFFERS!)"));
+
+            // one file, many tiles: opened (and allowed) once, 10 tiles written and read through it
+            long a = System.currentTimeMillis();
+            fc = (FileConnection) Connector.open(dir + "big.bin", Connector.READ_WRITE);
+            if (!fc.exists()) fc.create();
+            OutputStream o = fc.openOutputStream();
+            long b = System.currentTimeMillis();
+            for (int i = 0; i < 10; i++) o.write(data);
+            o.close();
+            fc.close();
+            fc = null;
+            long bigW = System.currentTimeMillis() - b;
+            fc = (FileConnection) Connector.open(dir + "big.bin", Connector.READ);
+            InputStream in = fc.openInputStream();
+            long c = System.currentTimeMillis();
+            int got = 0, k;
+            byte[] big = new byte[10 * SIZE];
+            while (got < big.length && (k = in.read(big, got, big.length - got)) > 0) got += k;
+            in.close();
+            fc.close();
+            fc = null;
+            long bigR = System.currentTimeMillis() - c;
+            line("one file of 10 tiles (200 KB): write " + bigW + " ms, read " + bigR + " ms (opening " + (b - a) + " ms)");
 
             t = System.currentTimeMillis();
             for (int i = 0; i < N; i++) {
@@ -156,48 +160,64 @@ public class FileTest extends Canvas implements CommandListener, Runnable {
                 fc.close();
                 fc = null;
             }
+            fc = (FileConnection) Connector.open(dir + "big.bin", Connector.READ_WRITE);
+            if (fc.exists()) fc.delete();
+            fc.close();
             fc = (FileConnection) Connector.open(dir, Connector.READ_WRITE);
             fc.delete();
             fc.close();
             fc = null;
             line("delete all: " + p(System.currentTimeMillis() - t));
-            summary.append(root).append(" files: write ").append(wAll / N).append(" ms, read ").append(rAll / N).append(" ms per 20 KB tile\n");
+            summary.append(label).append(": per 20 KB tile write ").append(avg(wd)).append(" ms, read ").append(avg(rd))
+                .append(" ms (data only); 10 tiles in one file: write ").append(bigW).append(" ms, read ").append(bigR).append(" ms\n");
         } catch (Throwable e) {
-            line(root + ": " + e);
-            summary.append(root).append(" files: ").append(e).append('\n');
+            line(label + ": " + e);
+            summary.append(label).append(": ").append(e).append('\n');
         } finally {
             try { if (fc != null) fc.close(); } catch (Throwable e) {}
         }
     }
 
-    /** The same into a new, empty record store (Mapy's old cache; its 8.5 MB one was far slower). */
+    static long avg(long[] a) {
+        long s = 0;
+        for (int i = 0; i < a.length; i++) s += a[i];
+        return a.length == 0 ? 0 : s / a.length;
+    }
+
+    /**
+     * The record store: no prompts there, so these are real. Does a write cost the same whatever
+     * its size (then several tiles in one record would be much faster), or does it grow with it?
+     */
     void recordStore() {
-        line("== Record store (new and empty)");
+        line("== Record store (new and empty, no prompts)");
         String name = "probefiletest";
         try { RecordStore.deleteRecordStore(name); } catch (Throwable e) {}
         try {
             RecordStore rs = RecordStore.openRecordStore(name, true);
-            long[] w = new long[N];
-            long t0 = System.currentTimeMillis();
-            for (int i = 0; i < N && running; i++) {
+            int[] sizes = { 100, 1024, 20 * 1024, 100 * 1024, 200 * 1024 };
+            for (int s = 0; s < sizes.length && running; s++) {
+                byte[] b = new byte[sizes[s]];
+                for (int i = 0; i < b.length; i++) b[i] = data[i % SIZE];
+                long[] w = new long[4];
+                for (int i = 0; i < w.length && running; i++) {
+                    long a = System.currentTimeMillis();
+                    rs.addRecord(b, 0, b.length);
+                    w[i] = System.currentTimeMillis() - a;
+                }
+                // changing a record that exists (Mapy's way when a tile is fetched again)
                 long a = System.currentTimeMillis();
-                rs.addRecord(data, 0, SIZE);
-                w[i] = System.currentTimeMillis() - a;
+                rs.setRecord(rs.getNextRecordID() - 1, b, 0, b.length);
+                long set = System.currentTimeMillis() - a;
+                a = System.currentTimeMillis();
+                rs.getRecord(rs.getNextRecordID() - 1);
+                long get = System.currentTimeMillis() - a;
+                String kb = sizes[s] < 1024 ? sizes[s] + " B" : sizes[s] / 1024 + " KB";
+                line(kb + ": add " + times(w) + " ms, change " + set + " ms, read " + get + " ms");
+                summary.append("record store ").append(kb).append(": write ").append(avg(w)).append(" ms, read ").append(get).append(" ms\n");
             }
-            long wAll = System.currentTimeMillis() - t0;
-            line("write " + N + " x 20 KB: " + wAll + " ms, per record " + times(w) + " ms");
-            long[] r = new long[N];
-            t0 = System.currentTimeMillis();
-            for (int i = 0; i < N && running; i++) {
-                long a = System.currentTimeMillis();
-                rs.getRecord(i + 1);
-                r[i] = System.currentTimeMillis() - a;
-            }
-            long rAll = System.currentTimeMillis() - t0;
-            line("read " + N + " x 20 KB: " + rAll + " ms, per record " + times(r) + " ms");
+            line("store now " + rs.getSize() / 1024 + " KB, " + rs.getNumRecords() + " records");
             rs.closeRecordStore();
             RecordStore.deleteRecordStore(name);
-            summary.append("record store: write ").append(wAll / N).append(" ms, read ").append(rAll / N).append(" ms per 20 KB tile\n");
         } catch (Throwable e) {
             line("record store: " + e);
         }
