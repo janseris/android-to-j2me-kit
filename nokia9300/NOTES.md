@@ -2,6 +2,13 @@
 
 - **Platform:** Series 80 v2 on **Symbian 7.0s, EKA1**. Not S60: S60v3+ (Symbian 9, EKA2) patches
   and tricks don't apply. Screen 640×200 (inner display), ARM9 at ~150 MHz, slow.
+- **Hardware** ([phonedb.net](https://phonedb.net/index.php?m=device&id=892&c=nokia_9300_communicator)):
+  TI OMAP 1510 (single ARM9 core, 16 KB instruction / 8 KB data cache), **64 MiB SDRAM**, 128 MiB
+  flash (79.8 MiB for the user). Symbian itself reports less RAM: a Czech launch review measured
+  **RAM 47104 kB**, C: 91742 kB, D: the MMC card, a "virtual" E: of 17312 kB. The rest of the 64 MiB
+  is presumably kept by the system (kernel, DSP, display). Net Helper 0.8+ shows the phone's own
+  figures (total, free, lowest free RAM) and 0.9+ every drive with its kind. Java gets a heap of
+  about 16 MB out of that (Probe, 2026-10-04).
 - **Java:** MIDP 2.0, CLDC 1.1 (so `double` works; no `Math.log`/`atan2`, write your own).
   Compile against `cldcapi11.jar`.
 - The application manager shows only *major.minor* of `MIDlet-Version`.
