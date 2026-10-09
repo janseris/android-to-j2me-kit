@@ -13,7 +13,7 @@ const net = require("net");
 const port = Number(process.argv[2] || 8000);
 const dir = __dirname;
 const types = { ".jad": "text/vnd.sun.j2me.app-descriptor", ".jar": "application/java-archive", ".sis": "application/vnd.symbian.install",
-                ".cer": "application/x-x509-ca-cert", ".der": "application/x-x509-ca-cert" };
+                ".cer": "application/x-x509-ca-cert", ".der": "application/x-x509-ca-cert", ".mp4": "video/mp4", ".3gp": "video/3gpp" };
 
 http.createServer((req, res) => {
     const url = decodeURIComponent(req.url.split("?")[0]);
@@ -78,7 +78,7 @@ http.createServer((req, res) => {
         return;
     }
     if (url === "/") {
-        const files = fs.readdirSync(dir).filter(f => /\.(jad|jar|sis|cer|dll|txt)$/.test(f));
+        const files = fs.readdirSync(dir).filter(f => /\.(jad|jar|sis|cer|dll|txt|mp4|3gp)$/.test(f));
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end("<html><body><h3>OTA</h3><a href=/upload>Upload a file to the PC</a><br><br>" + files.map(f => `<a href="/${f}">${f}</a><br>`).join("") + "</body></html>");
         return;
