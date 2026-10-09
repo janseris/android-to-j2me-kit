@@ -1,0 +1,9 @@
+; PP Probe 9300: tests the phone's Java Personal Profile (IBM J9) for a map app
+&EN
+#{"PP Probe 9300"},(0x0F5A9301),0,1,0
+; Series 80 2.0 (Nokia 9300 / 9500)
+(0x101F8ED2), 0, 0, 0, {"Series80ProductID"}
+"../bin/ppprobe.jar"-"C:\Data\PPProbe\ppprobe.jar"
+"ppprobe.j9"-"C:\Documents\PP Probe.j9"
+"ppprobe_jcl.j9"-"C:\Documents\PP Probe (jcl).j9"
+"j9vm_readme.txt"-"C:\logs\j9vm\readme.txt"
