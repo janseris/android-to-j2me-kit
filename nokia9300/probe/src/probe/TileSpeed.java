@@ -56,10 +56,17 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
     TileSpeed() { this(0); }
 
     /** mode 0: plain, 1: like Mapy with Java reading the GPS, 2: like Mapy 4.15 with Net Helper reading it. */
+    /** 3: the comparison (alone / + GPS from Net Helper / + GPS + decoding), see compare(). */
+    final int mode;
+    volatile int gpsPort = 8123;
+    volatile boolean decoding;
+    volatile int decodeSleep = 100;
+
     TileSpeed(int mode) {
-        this.likeMapy = mode != 0;
+        this.mode = mode;
+        this.likeMapy = mode == 1 || mode == 2;
         this.helperGps = mode == 2;
-        setTitle(mode == 2 ? "Map servers + GPS from Net Helper" : likeMapy ? "Map servers: like Mapy" : "Map servers: speed");
+        setTitle(mode == 3 ? "Speed: alone / GPS / GPS + decoding" : mode == 2 ? "Map servers + GPS from Net Helper" : likeMapy ? "Map servers: like Mapy" : "Map servers: speed");
         addCommand(STOP);
         setCommandListener(this);
         new Thread(this).start();
@@ -77,24 +84,12 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
 
     public void run() {
         ua = Probe.app.userAgent;
+        if (mode == 3) { compare(); return; }
         line((helperGps ? "Map server speed test with the GPS FROM NET HELPER (+ decoding), " : likeMapy ? "Map server speed test LIKE MAPY (GPS + decoding), " : "Map server speed test, ") + System.getProperty("microedition.platform"));
         if (helperGps) startGpsPoll();
         else if (likeMapy) line(BtGpsScreen.active != null ? "GPS reading in the background (" + BtGpsScreen.bgSentences + " sentences so far)"
                 : "GPS NOT reading: connect it in Bluetooth GPS and choose 'Keep reading, back to menu' first");
-        if (likeMapy) {
-            Thread dec = new Thread() {
-                public void run() {
-                    while (running) {
-                        byte[] b = lastBody;
-                        if (b != null) {
-                            try { Image.createImage(b, 0, b.length); decodes++; } catch (Throwable e) {}
-                        }
-                        try { Thread.sleep(100); } catch (InterruptedException e) {}
-                    }
-                }
-            };
-            dec.start();
-        }
+        if (likeMapy) startDecoding(100);
         int gps0 = BtGpsScreen.bgSentences;
         try {
             key = Probe.app.apiKey;
@@ -157,7 +152,7 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
     void startGpsPoll() {
         String a = BtGpsScreen.cleanAddress(Probe.app.btAddress);
         if (a.length() != 12) a = "0C7165CF2E7E";
-        final String url = "http://127.0.0.1:8123/gps?addr=" + a;
+        final String url = "http://127.0.0.1:" + gpsPort + "/gps?addr=" + a;
         line("GPS from Net Helper, address " + a);
         new Thread() {
             public void run() {
@@ -188,6 +183,128 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
                 }
             }
         }.start();
+    }
+
+    /** Decodes the last downloaded tile on another thread, every aSleep ms (Mapy decodes each tile it shows). */
+    void startDecoding(int aSleep) {
+        decodeSleep = aSleep;
+        decoding = true;
+        new Thread() {
+            public void run() {
+                while (running && decoding) {
+                    byte[] b = lastBody;
+                    if (b != null) {
+                        try { Image.createImage(b, 0, b.length); decodes++; } catch (Throwable e) {}
+                    }
+                    try { Thread.sleep(decodeSleep); } catch (InterruptedException e) {}
+                }
+            }
+        }.start();
+    }
+
+    /**
+     * The same downloads three times, to see what slows them down: 1) nothing else running,
+     * 2) the GPS from Net Helper asked every second (on 127.0.0.1:8124, answered at once),
+     * 3) GPS + a tile decoded every 0.5 s, as Mapy does. Through Net Helper each tile also says how
+     * long the server took (X-Helper total=), so the rest is the phone's own time.
+     */
+    void compare() {
+        line("Comparison, " + System.getProperty("microedition.platform") + ": the same kind of tiles 1) alone 2) with the GPS from Net Helper 3) GPS + decoding");
+        key = Probe.app.apiKey;
+        if (key.length() == 0) {
+            String[] r = get("http://" + Probe.app.pc + "/mapy_api.key", false, false, false);
+            if (r[1].equals("200")) key = r[4].trim();
+            line(key.length() > 0 ? "Mapy.com key loaded from the PC" : "No Mapy.com key (PC: HTTP " + r[1] + "), Mapy.com skipped");
+        }
+        String[] h = get("http://127.0.0.1:8123/", false, false, false);
+        helper = h[1].equals("200");
+        line(helper ? "Net Helper: " + h[4].trim() : "Net Helper NOT running: start it (needed for the GPS and the server/phone split)");
+        StringBuffer sum = new StringBuffer();
+        try {
+            phase(1, "alone", sum);
+            if (running && helper) {
+                gpsPort = 8124;
+                startGpsPoll();
+                long end = System.currentTimeMillis() + 60000;
+                String shown = "";
+                while (running && System.currentTimeMillis() < end) {
+                    String now = gpsState + ": " + gpsInfo;
+                    if (!now.equals(shown)) { shown = now; line("GPS " + now); }
+                    if (gpsState.equals("connected") && gpsAge.length() > 0 && !gpsAge.equals("-1") && Integer.parseInt(gpsAge) < 5000) break;
+                    BigTest.pause(500);
+                }
+                line("GPS: " + gpsState + ", " + gpsInfo + ", last data " + gpsAge + " ms ago");
+                int p0 = polls;
+                long s0 = pollSum;
+                phase(2, "with the GPS", sum);
+                int p1 = polls;
+                long s1 = pollSum;
+                startDecoding(500);
+                phase(3, "GPS + decoding", sum);
+                decoding = false;
+                sum.append("GPS polls: phase 2 ").append(p1 - p0).append(" (" + (p1 > p0 ? (s1 - s0) / (p1 - p0) : 0) + " ms each), phase 3 ")
+                    .append(polls - p1).append(" (" + (polls > p1 ? (pollSum - s1) / (polls - p1) : 0) + " ms each), longest " + pollMax + " ms, new positions " + gpsChanges + "\n");
+                get("http://127.0.0.1:8124/gps?stop=1", false, false, false);
+            }
+        } catch (Throwable e) {
+            line("ERROR: " + e);
+        }
+        boolean was = running;
+        running = false;            // stops the GPS poll and the decoding
+        line("== Summary: direct / through Net Helper (server + phone), ms per tile without the first one");
+        String sm = sum.toString();
+        int st = 0;
+        while (st < sm.length()) {
+            int e = sm.indexOf('\n', st);
+            if (e < 0) e = sm.length();
+            line(sm.substring(st, e));
+            st = e + 1;
+        }
+        Probe.app.saveLog();
+        try {
+            line(Probe.post("http://" + Probe.app.pc + "/results?name=tilecompare", report.toString()));
+        } catch (Throwable e) {
+            line("Sending failed: " + e);
+        }
+    }
+
+    static final int[] COMPARE = { 0, 1, 4 };      // OSM, OpenTopoMap, Mapy.com standard
+
+    void phase(int p, String name, StringBuffer sum) {
+        line("== Phase " + p + ": " + name);
+        for (int k = 0; k < COMPARE.length && running; k++) {
+            String[] sv = SERVERS[COMPARE[k]];
+            if (sv[1].indexOf("{key}") >= 0 && key.length() == 0) continue;
+            boolean sendUa = sv[2].equals("y");
+            int x0 = 35700 + 20 * k, y = 22300 + 4 * p;       // other tiles each phase: no server cache
+            long[] d = new long[5];
+            long[] hj = new long[5], hs = new long[5];
+            StringBuffer b1 = new StringBuffer(), b2 = new StringBuffer();
+            for (int i = 0; i < 5 && running; i++) {
+                String[] r = get(url(sv[1], 16, x0 + i, y), false, sendUa, true);
+                d[i] = r[1].equals("200") ? Long.parseLong(r[0]) : -1;
+                b1.append(r[0]).append(r[1].equals("200") ? "" : "(" + r[1] + ")").append(' ');
+            }
+            for (int i = 0; i < 5 && running && helper; i++) {
+                String[] r = get(url(sv[1], 16, x0 + i, y + 1), true, sendUa, true);
+                hj[i] = r[1].equals("200") ? Long.parseLong(r[0]) : -1;
+                hs[i] = -1;
+                int t = r[3].indexOf(" total=");
+                if (t >= 0) {
+                    int e = t + 7;
+                    while (e < r[3].length() && Character.isDigit(r[3].charAt(e))) e++;
+                    try { hs[i] = Long.parseLong(r[3].substring(t + 7, e)); } catch (Throwable x) {}
+                }
+                b2.append(r[0]).append("(" + hs[i] + ")").append(r[1].equals("200") ? "" : "[" + r[1] + "]").append(' ');
+            }
+            line(sv[0] + " direct: [" + b1.toString().trim() + "]");
+            if (helper) line(sv[0] + " Net Helper, total(server): [" + b2.toString().trim() + "]");
+            String ha = avg(hj), hsa = avg(hs);
+            String phone = "-";
+            try { phone = "" + (Long.parseLong(ha) - Long.parseLong(hsa)); } catch (Throwable e) {}
+            sum.append(p).append(" ").append(name).append(", ").append(sv[0]).append(": ").append(avg(d)).append(" / ")
+                .append(helper ? ha + " (server " + hsa + " + phone " + phone + ")" : "-").append("\n");
+        }
     }
 
     String url(String t, int z, int x, int y) {
@@ -271,6 +388,33 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
         Probe.app.back();
     }
 
+    boolean full;
+
+    /** F: full screen and back. */
+    protected void keyPressed(int key) {
+        if (key == 'f' || key == 'F') {
+            full = !full;
+            setFullScreenMode(full);
+            repaint();
+        }
+    }
+
+    /** Splits s into rows that fit width w (at spaces when possible). */
+    static Vector wrap(Font f, String s, int w) {
+        Vector out = new Vector();
+        while (s.length() > 0) {
+            int n = s.length();
+            while (n > 1 && f.substringWidth(s, 0, n) > w) n--;
+            if (n < s.length()) {
+                int sp = s.lastIndexOf(' ', n);
+                if (sp > 0) n = sp + 1;
+            }
+            out.addElement(s.substring(0, n));
+            s = s.substring(n).trim();
+        }
+        return out;
+    }
+
     protected void paint(Graphics g) {
         int w = getWidth(), h = getHeight();
         Font f = Font.getFont(Font.FACE_SYSTEM, Font.STYLE_PLAIN, Font.SIZE_SMALL);
@@ -278,13 +422,22 @@ public class TileSpeed extends Canvas implements CommandListener, Runnable {
         g.fillRect(0, 0, w, h);
         g.setFont(f);
         int fh = f.getHeight(), rows = h / fh;
+        // the newest lines, wrapped, filling the screen from the bottom up
+        Vector shown = new Vector(), colors = new Vector();
         synchronized (lines) {
-            int from = Math.max(0, lines.size() - rows);
-            for (int i = from; i < lines.size(); i++) {
+            for (int i = lines.size() - 1; i >= 0 && shown.size() < rows; i--) {
                 String s = (String) lines.elementAt(i);
-                g.setColor(s.startsWith("==") ? 0xFCEE74 : 0xDBDEE1);
-                g.drawString(s, 3, (i - from) * fh, Graphics.TOP | Graphics.LEFT);
+                Vector part = wrap(f, s, w - 6);
+                Integer c = new Integer(s.startsWith("==") ? 0xFCEE74 : 0xDBDEE1);
+                for (int k = part.size() - 1; k >= 0 && shown.size() < rows; k--) {
+                    shown.insertElementAt(part.elementAt(k), 0);
+                    colors.insertElementAt(c, 0);
+                }
             }
+        }
+        for (int i = 0; i < shown.size(); i++) {
+            g.setColor(((Integer) colors.elementAt(i)).intValue());
+            g.drawString((String) shown.elementAt(i), 3, i * fh, Graphics.TOP | Graphics.LEFT);
         }
     }
 }

@@ -1,8 +1,8 @@
 MIDlet-1: Probe 9300, , probe.Probe
-MIDlet-Jar-Size: 69339
+MIDlet-Jar-Size: 71848
 MIDlet-Jar-URL: probe9300.jar
 MIDlet-Name: Probe 9300
 MIDlet-Vendor: android-to-j2me-kit
-MIDlet-Version: 3.6
+MIDlet-Version: 3.7
 MicroEdition-Configuration: CLDC-1.1
 MicroEdition-Profile: MIDP-2.0
