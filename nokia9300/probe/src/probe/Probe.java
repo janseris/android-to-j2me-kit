@@ -20,7 +20,7 @@ public class Probe extends MIDlet implements CommandListener {
     String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String apiKey = "";
     /** OSM's tile policy requires a User-Agent that names the app (no browser or library default). */
-    String userAgent = "Probe9300/3.9 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
+    String userAgent = "Probe9300/3.10 (J2ME device test; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)";
     static final String URL_MAPY = "https://api.mapy.com/v1/maptiles/outdoor/256/{z}/{x}/{y}?apikey={key}";
     static final String URL_OSM = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     String btAddress = "";
@@ -29,7 +29,8 @@ public class Probe extends MIDlet implements CommandListener {
     static final Command EXIT = new Command("Konec", Command.EXIT, 9);
     static final Command OK = new Command("Uložit", Command.SCREEN, 1);   // SCREEN: shown on a side button on the 9300, OK went to the menu
 
-    static final String T_FILES = "Files (FileConnection) vs record store + decoding",
+    static final String T_HSTATUS = "Net Helper status (RAM, drives, cache) to PC",
+        T_FILES = "Files (FileConnection) vs record store + decoding",
         T_COMPARE = "Speed: alone / with GPS / GPS + decoding (Net Helper)",
         T_TILE_HGPS = "Map servers + GPS from Net Helper (like Mapy 4.15)",
         T_TILE_MAPY = "Map servers like Mapy (GPS in background + decoding)",
@@ -48,7 +49,7 @@ public class Probe extends MIDlet implements CommandListener {
         T_LOG = "Log",
         T_SEND = "Odeslat log na PC";
     /** Menu: the newest test first (add new ones at the top). */
-    static final String[] ITEMS = { T_FILES, T_COMPARE, T_TILE_HGPS, T_TILE_MAPY, T_TILE_SPEED, T_HELPER_FETCH, T_HELPER, T_KEEPALIVE, T_BIG, T_RAW, T_CONN, T_HEADERS, T_BT, T_TILES,
+    static final String[] ITEMS = { T_HSTATUS, T_FILES, T_COMPARE, T_TILE_HGPS, T_TILE_MAPY, T_TILE_SPEED, T_HELPER_FETCH, T_HELPER, T_KEEPALIVE, T_BIG, T_RAW, T_CONN, T_HEADERS, T_BT, T_TILES,
         T_MEMORY, T_SETTINGS, T_LOG, T_SEND };
 
     public Probe() { app = this; }
@@ -94,7 +95,8 @@ public class Probe extends MIDlet implements CommandListener {
         if (d == menu) {
             int i = menu.getSelectedIndex();
             String item = i >= 0 ? ITEMS[i] : "";
-            if (item == T_FILES) show(new FileTest());
+            if (item == T_HSTATUS) helperStatus();
+            else if (item == T_FILES) show(new FileTest());
             else if (item == T_COMPARE) show(new TileSpeed(3));
             else if (item == T_TILE_HGPS) show(new TileSpeed(2));
             else if (item == T_TILE_MAPY) show(new TileSpeed(1));
@@ -223,7 +225,7 @@ public class Probe extends MIDlet implements CommandListener {
                 int colon = pc.indexOf(':');
                 String host = colon < 0 ? pc : pc.substring(0, colon);
                 int port = colon < 0 ? 80 : Integer.parseInt(pc.substring(colon + 1));
-                String[] uas = { "Probe9300/3.9", userAgent,
+                String[] uas = { "Probe9300/3.10", userAgent,
                     "Mapy9300/3.6 (J2ME map app; Nokia 9300; SymbianOS/7.0s Series80/2.0; Profile/MIDP-2.0 Configuration/CLDC-1.1)" };
                 StringBuffer all = new StringBuffer();
                 for (int i = 0; i < uas.length; i++) {
@@ -246,6 +248,32 @@ public class Probe extends MIDlet implements CommandListener {
                 }
                 log("--- raw headers test:\n" + all);
                 message("Surové hlavičky", all.toString());
+            }
+        }.start();
+    }
+
+    /** Net Helper's whole status (its /mem: RAM, drives, tile cache, GPS) on screen and to the PC. */
+    void helperStatus() {
+        new Thread() {
+            public void run() {
+                String text;
+                HttpConnection c = null;
+                InputStream in = null;
+                try {
+                    c = (HttpConnection) Connector.open("http://127.0.0.1:8123/mem");
+                    in = c.openInputStream();
+                    text = new String(TileScreen.readAll(in, (int) c.getLength()), "UTF-8");
+                } catch (Throwable e) {
+                    text = "Net Helper not reached: " + e + " (is it running?)";
+                } finally {
+                    try { if (in != null) in.close(); } catch (Throwable e) {}
+                    try { if (c != null) c.close(); } catch (Throwable e) {}
+                }
+                log("--- Net Helper status:\n" + text);
+                saveLog();
+                try { text += "\n(" + post("http://" + pc + "/results?name=nethelper_status", "Net Helper status\n" + text) + ")"; }
+                catch (Throwable e) { text += "\n(sending to PC failed: " + e + ")"; }
+                message("Net Helper status", text);
             }
         }.start();
     }
