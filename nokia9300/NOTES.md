@@ -223,3 +223,22 @@ with `Connection: close`, no `Accept`.
 - `routing.openstreetmap.de` over HTTPS: `CertificateException` (use HTTP).
 - Overpass mirrors: private.coffee (HTTP 404, HTTPS hangs) and maps.mail.ru (HTTP -> 301, HTTPS
   hangs) don't work from the phone; overpass-api.de does (HTTP and HTTPS).
+
+## Java storage and the second Java (Probe 3.8–3.9, PP Probe 0.1–0.3, 2026-10-09)
+
+**MIDP writes are slow whatever they write to:** about 5–6 KB/s.
+- Record store: 1 KB 0.8 s, 20 KB 4.3 s, 100 KB 17.5 s, 200 KB 33.6 s per record; reads 16 ms (20 KB).
+  Even a new, empty store is this slow, and putting several tiles in one record doesn't help.
+- FileConnection (JSR-75): unsigned MIDlets get "Access denied" on C: (also on the MIDlet's own
+  `fileconn.dir.private`), and a "read/write user data?" prompt on almost every access on the card.
+  Data alone: card about 6.5 KB/s written, C: private folder about 2 KB/s.
+- So a cache must be written natively (Net Helper's file cache: about 1 s per tile saved, 0.25 s read).
+
+**Java Personal Profile (IBM J9 2.2, ppro10)** is on the phone and starts from a `.j9` file (its
+command line, e.g. `-Xmx16m -cp C:\Data\PPProbe\ppprobe.jar ppprobe.PPProbe`). Install by SIS; the
+File manager's "Komunikátor" is the top of C:, but it doesn't show `C:\Documents`.
+- Heap about 4 MB by default; `-Xmx16m` works (63 decoded 256×256 tiles fit).
+- No https (`Unknown protocol: https`); plain http directly 0.17–0.2 s per tile, Net Helper 0.28–0.39 s.
+- AWT crashes for an unsigned jar: a KERN-EXEC 3 at start (several times), an empty window, and
+  decoding (Toolkit.createImage + MediaTracker) and even `File.isDirectory()` never return. So it's not
+  usable for Mapy as it is.
