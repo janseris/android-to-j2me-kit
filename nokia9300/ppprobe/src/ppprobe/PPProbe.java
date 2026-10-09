@@ -17,7 +17,7 @@ import java.util.Properties;
  * (uploads/..._pptest.txt) and to C:\Data\PPProbe\result.txt. Written for Java 1.3-level APIs only.
  */
 public class PPProbe extends Frame implements Runnable {
-    static final String VERSION = "0.2";
+    static final String VERSION = "0.3";
     static final String UA = "PPProbe9300/" + VERSION + " (Java Personal Profile test; Nokia 9300; SymbianOS/7.0s Series80/2.0)";
     static final int N = 30, SIZE = 20 * 1024;
     /** The tile Probe 3.8 decodes too (Brno, zoom 16). */
@@ -61,7 +61,40 @@ public class PPProbe extends Frame implements Runnable {
     void line(String s) {
         report.append(s).append('\n');
         System.out.println(s);
-        try { text.append(s + "\n"); } catch (Throwable e) {}
+        // the text box is changed on the AWT thread only (from this thread it may have crashed J9's text peer)
+        final String t = s + "\n";
+        try {
+            EventQueue.invokeLater(new Runnable() {
+                public void run() { try { text.append(t); } catch (Throwable e) {} }
+            });
+        } catch (Throwable e) {}
+    }
+
+    /**
+     * One part of the test in its own thread, given at most aMax ms: a part that hangs (0.2 hung in
+     * the file test after a KERN-EXEC 3) doesn't stop the rest. The results so far go to the PC after
+     * every part, so a later crash loses nothing.
+     */
+    void step(final String name, final int part, long aMax) {
+        Thread t = new Thread() {
+            public void run() {
+                try {
+                    if (part == 0) vm();
+                    else if (part == 1) network();
+                    else if (part == 2) decode();
+                    else if (part == 3) files();
+                    else mkdirTest();
+                } catch (Throwable e) { line(name + ": " + e); }
+            }
+        };
+        long t0 = System.currentTimeMillis();
+        t.start();
+        try { t.join(aMax); } catch (InterruptedException e) {}
+        if (t.isAlive()) {
+            line("!! " + name + " STUCK after " + (System.currentTimeMillis() - t0) / 1000 + " s (last line above is where); going on");
+            summary.append(name).append(": stuck\n");
+        }
+        try { post("http://" + pc + "/results?name=pptest", report.toString() + "\n(after " + name + ")\n"); } catch (Throwable e) {}
     }
 
     static String p(long ms) { return ms + " ms" + (ms > 1500 ? " (prompt?)" : ""); }
@@ -81,15 +114,16 @@ public class PPProbe extends Frame implements Runnable {
 
     public void run() {
         line("== PP Probe " + VERSION + ": Java Personal Profile on the phone");
-        try { vm(); } catch (Throwable e) { line("VM info: " + e); }
-        try { files(); } catch (Throwable e) { line("files: " + e); }
-        try { network(); } catch (Throwable e) { line("network: " + e); }
-        try { decode(); } catch (Throwable e) { line("decoding: " + e); }
+        step("VM info", 0, 60000);
+        step("network", 1, 120000);
+        step("decoding", 2, 60000);
+        step("files", 3, 120000);
+        step("making a folder", 4, 30000);
         line("== Summary");
         line(summary.toString().trim());
-        try { saveFile(); } catch (Throwable e) { line("(saving result.txt failed: " + e + ")"); }
-        try { line("sent to PC: " + post("http://" + pc + "/results?name=pptest", report.toString())); }
+        try { line("sent to PC: " + post("http://" + pc + "/results?name=pptest", report.toString() + "\n(final)\n")); }
         catch (Throwable e) { line("(sending to PC " + pc + " failed: " + e + ")"); }
+        try { saveFile(); } catch (Throwable e) { line("(saving result.txt failed: " + e + ")"); }
         line("Done. Exit closes PP Probe.");
     }
 
@@ -131,27 +165,33 @@ public class PPProbe extends Frame implements Runnable {
         line("== Files (java.io). Drives: " + s);
         byte[] data = new byte[SIZE];
         for (int i = 0; i < SIZE; i++) data[i] = (byte) (i * 31 + 7);
-        for (int i = 0; roots != null && i < roots.length; i++) {
-            String root = roots[i].getPath();
-            char c = Character.toUpperCase(root.charAt(0));
-            if (c == 'Z' || c == 'A') continue;                     // ROM, nothing to write
-            drive(c == 'C' ? new File(root, "Data" + File.separator + "PPProbe" + File.separator + "test")
-                           : new File(root, "PPProbeTest"), c + ":", data);
-        }
+        // PP Probe's own folder exists already (the jar is in it): no folder to make (0.2 hung there)
+        drive(new File("C:\\Data\\PPProbe"), "C:", data);
+        File card = new File("D:\\");
+        line("card D: " + (card.exists() ? "there" : "not seen"));
+        if (card.exists()) drive(card, "D:", data);
+    }
+
+    /** Last, as it may be what hung in 0.2: making a folder. */
+    void mkdirTest() {
+        File dir = new File("C:\\Data\\PPProbe\\sub");
+        line("== Making a folder " + dir.getPath());
+        long t = System.currentTimeMillis();
+        boolean ok = dir.mkdir();
+        line("mkdir: " + ok + ", " + (System.currentTimeMillis() - t) + " ms");
+        line("delete: " + dir.delete());
     }
 
     void drive(File dir, String name, byte[] data) {
         line("== " + name + " (" + dir.getPath() + ")");
         try {
-            long t = System.currentTimeMillis();
-            dir.mkdirs();
-            line("make folder: " + p(System.currentTimeMillis() - t) + (dir.isDirectory() ? "" : " (NOT MADE)"));
-            if (!dir.isDirectory()) { summary.append(name).append(" files: folder not made\n"); return; }
+            long t;
+            line("folder there: " + dir.isDirectory() + "; writing...");
             long[] w = new long[N];
             long t0 = System.currentTimeMillis();
             for (int i = 0; i < N; i++) {
                 long a = System.currentTimeMillis();
-                FileOutputStream o = new FileOutputStream(new File(dir, "t" + i + ".png"));
+                FileOutputStream o = new FileOutputStream(new File(dir, "pptest" + i + ".bin"));
                 o.write(data);
                 o.close();
                 w[i] = System.currentTimeMillis() - a;
@@ -167,7 +207,7 @@ public class PPProbe extends Frame implements Runnable {
             t0 = System.currentTimeMillis();
             for (int i = 0; i < N; i++) {
                 long a = System.currentTimeMillis();
-                FileInputStream in = new FileInputStream(new File(dir, "t" + i + ".png"));
+                FileInputStream in = new FileInputStream(new File(dir, "pptest" + i + ".bin"));
                 int got = 0, k;
                 while (got < SIZE && (k = in.read(buf, got, SIZE - got)) > 0) got += k;
                 in.close();
@@ -177,8 +217,7 @@ public class PPProbe extends Frame implements Runnable {
             long rAll = System.currentTimeMillis() - t0;
             line("read " + N + " x 20 KB: " + rAll + " ms, per file " + times(r) + " ms" + (same ? "" : " (DATA DIFFERS!)"));
             t = System.currentTimeMillis();
-            for (int i = 0; i < N; i++) new File(dir, "t" + i + ".png").delete();
-            dir.delete();
+            for (int i = 0; i < N; i++) new File(dir, "pptest" + i + ".bin").delete();
             line("delete all: " + p(System.currentTimeMillis() - t));
             summary.append(name).append(" files: write ").append(wAll / N).append(" ms, read ").append(rAll / N).append(" ms per 20 KB tile\n");
         } catch (Throwable e) {
@@ -362,7 +401,6 @@ public class PPProbe extends Frame implements Runnable {
 
     void saveFile() throws IOException {
         File dir = new File("C:" + File.separator + "Data" + File.separator + "PPProbe");
-        dir.mkdirs();
         FileOutputStream o = new FileOutputStream(new File(dir, "result.txt"));
         o.write(report.toString().getBytes("UTF-8"));
         o.close();

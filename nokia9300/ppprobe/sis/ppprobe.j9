@@ -1,1 +1,1 @@
--cp C:\Data\PPProbe\ppprobe.jar ppprobe.PPProbe
+-Xmx16m -cp C:\Data\PPProbe\ppprobe.jar ppprobe.PPProbe
