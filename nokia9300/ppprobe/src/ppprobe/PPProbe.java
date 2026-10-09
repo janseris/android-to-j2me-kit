@@ -17,7 +17,7 @@ import java.util.Properties;
  * (uploads/..._pptest.txt) and to C:\Data\PPProbe\result.txt. Written for Java 1.3-level APIs only.
  */
 public class PPProbe extends Frame implements Runnable {
-    static final String VERSION = "0.1";
+    static final String VERSION = "0.2";
     static final String UA = "PPProbe9300/" + VERSION + " (Java Personal Profile test; Nokia 9300; SymbianOS/7.0s Series80/2.0)";
     static final int N = 30, SIZE = 20 * 1024;
     /** The tile Probe 3.8 decodes too (Brno, zoom 16). */

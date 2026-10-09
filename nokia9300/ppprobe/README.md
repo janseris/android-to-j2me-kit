@@ -13,9 +13,9 @@ Results go to the OTA server (`uploads/..._pptest.txt`) and to `C:\Data\PPProbe\
 ## Install and run
 
 - Install `ppprobe.sis` from the OTA server (it puts `ppprobe.jar` in `C:\Data\PPProbe\`, two launchers in
-  `C:\Documents\` and makes `C:\logs\j9vm\`, where J9 writes the Java console: errors end up there).
+  `C:\Moje soubory\` (the File manager's internal memory on a Czech 9300) and makes `C:\logs\j9vm\`, where J9 writes the Java console: errors end up there).
 - Start Net Helper first (for the Net Helper and decoding parts).
-- In the File manager open `C:\Documents\PP Probe.j9`. A `.j9` file is the J9 command line
+- Easiest: open `ppprobe.j9` from the OTA server page in the phone's browser (served as `text/j9args`, the phone starts it). Or in the File manager open `PP Probe.j9` in the internal memory. A `.j9` file is the J9 command line
   (`-cp C:\Data\PPProbe\ppprobe.jar ppprobe.PPProbe`). If it doesn't start, try `PP Probe (jcl).j9`
   (the same with `-jcl:ppro10`).
 - Another PC address: `-Dpc=host:port` before `-cp` in the `.j9` file (default `192.168.137.1:8000`).
